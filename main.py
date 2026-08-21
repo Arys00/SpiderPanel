@@ -415,8 +415,16 @@ WORKER: dict = {
     "control_token": "",
     # Panel domain injected into the worker so it can expose panel info.
     "panel_domain": "",
-    # KV namespace id for the worker's SPIDER_KV binding.
+    # KV namespace id + title for the worker's dedicated SPIDER_KV binding
+    # ({worker_name}-db — one namespace per worker, never shared).
     "kv_namespace_id": "",
+    "kv_namespace_title": "",
+    # Remote-control status pulled from the worker's /panel/status API.
+    "remote_status": "",
+    "last_heartbeat": "",
+    "worker_users_online": 0,
+    "worker_traffic_bytes": 0,
+    "worker_user_count": 0,
     "proxies": {},
     "last_sync": "",
     "last_error": "",
@@ -1322,6 +1330,7 @@ async def startup():
     from xhttp_siz10 import router as xhttp_router
     app.include_router(xhttp_router)
     asyncio.create_task(_worker_proxy_sync_loop())
+    asyncio.create_task(_worker_auto_sync_loop())
     asyncio.create_task(_xray_client_audit_loop())
 
     # Start Telegram Proxy instances for all existing TG inbounds
@@ -1473,6 +1482,30 @@ async def _worker_proxy_sync_loop():
         except Exception as e:
             logger.warning(f"worker sync failed: {e}")
         await asyncio.sleep(min(WORKER_SYNC_INTERVAL, 30))
+
+WORKER_AUTO_SYNC_INTERVAL = int(os.environ.get("WORKER_AUTO_SYNC_INTERVAL", 300))  # seconds
+
+async def _worker_auto_sync_loop():
+    """Background loop: keeps panel and worker in sync without any manual action.
+
+    Every WORKER_AUTO_SYNC_INTERVAL seconds (default 5 min), while a worker is
+    connected:
+      1. push users/routes/settings → worker (POST /panel/config),
+      2. pull live usage + worker-generated configs back (GET /api/user/{uuid}),
+      3. refresh the remote status/heartbeat shown in the Worker tab.
+    Failures (e.g. KV daily limit) are logged and retried next tick."""
+    await asyncio.sleep(20)  # let startup finish
+    while True:
+        try:
+            if WORKER.get("connected"):
+                push = await _worker_push_config()
+                if not push.get("ok"):
+                    logger.warning(f"worker auto-push failed: {push.get('detail')}")
+                await _worker_pull_all_users()
+                await _worker_pull_status()
+        except Exception as e:
+            logger.warning(f"worker auto-sync failed: {e}")
+        await asyncio.sleep(WORKER_AUTO_SYNC_INTERVAL)
 
 
 @app.on_event("shutdown")
@@ -4008,9 +4041,13 @@ async def api_user_sub(username: str):
 
 
 @app.get("/api/sub/{username}/qr")
-async def sub_qr(username: str):
+async def sub_qr(username: str, cfg: str = ""):
     """Public QR code PNG for the subscription page (no auth required).
-    QR contains the subscription URL: domain/sub/config_uuid"""
+
+    Without ?cfg= the QR contains the subscription URL (domain/sub/config_uuid).
+    With ?cfg={config_uuid} it encodes that specific config link of the user —
+    used by the sub page when no client-side QR library is available.
+    """
     if not QR_AVAILABLE:
         raise HTTPException(status_code=501, detail="qr code generation not available")
     user = None
@@ -4026,11 +4063,36 @@ async def sub_qr(username: str):
     config_uuid = user.get("config_uuid", "")
     if not config_uuid:
         raise HTTPException(status_code=404, detail="user has no config_uuid")
-    host = SETTINGS.get("domain") or get_host()
-    sub_url = f"https://{host}/sub/{config_uuid}"
+
+    qr_data = ""
+    if cfg:
+        # Encode one of this user's own configs (matched by uuid prefix).
+        if cfg != config_uuid and cfg not in (user.get("inbound_ids") or []):
+            raise HTTPException(status_code=403, detail="cfg mismatch")
+        configs = list(user.get("worker_configs") or [])
+        if not configs:
+            for iid_ in (user.get("inbound_ids") or []):
+                ib = INBOUNDS.get(iid_)
+                if ib and (ib.get("protocol") or "").lower() == "worker":
+                    configs.extend(_worker_configs(uid, user, ib, "", f"Spider-{username}"))
+        if not configs:
+            single = generate_user_config(uid, user, user.get("inbound_id"))
+            if single:
+                configs = [single]
+        idx = 0
+        if cfg != config_uuid:
+            try:
+                idx = int(cfg)
+            except ValueError:
+                idx = 0
+        qr_data = configs[idx] if configs and idx < len(configs) else (configs[0] if configs else "")
+    if not qr_data:
+        host = SETTINGS.get("domain") or get_host()
+        qr_data = f"https://{host}/sub/{config_uuid}"
+
     qr = qrcode.QRCode(version=1, box_size=8, border=3,
                        error_correction=qrcode.constants.ERROR_CORRECT_M)
-    qr.add_data(sub_url)
+    qr.add_data(qr_data)
     qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white")
     buf = io.BytesIO()
@@ -6000,6 +6062,12 @@ def _worker_public() -> dict:
         "worker_url": WORKER.get("worker_url", ""),
         "panel_domain": WORKER.get("panel_domain", ""),
         "kv_namespace_id": WORKER.get("kv_namespace_id", ""),
+        "kv_namespace_title": WORKER.get("kv_namespace_title", ""),
+        "remote_status": WORKER.get("remote_status", ""),
+        "last_heartbeat": WORKER.get("last_heartbeat", ""),
+        "worker_users_online": int(WORKER.get("worker_users_online") or 0),
+        "worker_traffic_bytes": int(WORKER.get("worker_traffic_bytes") or 0),
+        "worker_user_count": int(WORKER.get("worker_user_count") or 0),
         "last_sync": WORKER.get("last_sync", ""),
         "last_error": WORKER.get("last_error", ""),
         "source_url": WORKER.get("source_url", ""),
@@ -6015,7 +6083,12 @@ def _worker_public() -> dict:
 
 
 async def _ensure_worker_kv() -> str | None:
-    """Find or create the SPIDER_KV namespace for the worker. Returns its id."""
+    """Find or create the dedicated KV namespace for THIS worker ({worker}-db).
+
+    Every deployed worker gets its own private KV namespace so multiple
+    workers never share user/proxy state. The id is persisted in WORKER state;
+    on reconnect the namespace is looked up by title and reused.
+    """
     acct = str(WORKER.get("account_id") or "")
     cf_token = str(WORKER.get("token") or "")
     if not acct or not cf_token:
@@ -6023,23 +6096,28 @@ async def _ensure_worker_kv() -> str | None:
     existing = str(WORKER.get("kv_namespace_id") or "")
     if existing:
         return existing
-    # List existing namespaces, reuse if we already created one.
+    wname = str(WORKER.get("worker_name") or "").strip()
+    kv_title = f"{wname}-db" if wname else "spider-worker-kv"
+    # List existing namespaces, reuse ours if a previous deploy created it.
     code, data = await _cf_api("GET", f"/accounts/{acct}/storage/kv/namespaces", cf_token, email="")
     if code == 200:
         for ns in (data.get("result") or []):
-            if ns.get("title") == "spider-worker-kv":
+            if ns.get("title") == kv_title:
                 async with WORKER_LOCK:
                     WORKER["kv_namespace_id"] = ns.get("id")
+                    WORKER["kv_namespace_title"] = kv_title
+                asyncio.create_task(save_state())
                 return ns.get("id")
-    # Create a new namespace.
+    # Create a fresh dedicated namespace for this worker.
     code, data = await _cf_api(
         "POST", f"/accounts/{acct}/storage/kv/namespaces",
-        cf_token, {"title": "spider-worker-kv"}, email="",
+        cf_token, {"title": kv_title}, email="",
     )
     if code == 200 and data.get("result"):
         nid = data["result"].get("id")
         async with WORKER_LOCK:
             WORKER["kv_namespace_id"] = nid
+            WORKER["kv_namespace_title"] = kv_title
         asyncio.create_task(save_state())
         return nid
     return None
@@ -6297,6 +6375,107 @@ async def _ensure_worker_inbound() -> bool:
     return True
 
 
+async def _worker_push_config() -> dict:
+    """Remote control: push the full panel config to the worker in one call.
+
+    POST /panel/config (Bearer control token) carries users (uuid, limit,
+    expire, used, countries), the proxy routes and settings. The worker stores
+    everything in its dedicated KV and answers with a summary. This is the
+    single "panel → worker" channel; individual /api/users calls stay for
+    incremental updates.
+    """
+    domain = str(WORKER.get("worker_domain") or "").strip().lower()
+    ctrl = str(WORKER.get("control_token") or "")
+    if not domain or not ctrl or domain in ("localhost", "0.0.0.0", "127.0.0.1"):
+        return {"ok": False, "detail": "worker not connected / no control token"}
+    wid = next((iid for iid, ib in INBOUNDS.items()
+                if ((ib or {}).get("protocol") or "").lower() == "worker"), None)
+    users = []
+    async with USERS_LOCK:
+        for uid, u in USERS.items():
+            iids = u.get("inbound_ids") or ([u.get("inbound_id")] if u.get("inbound_id") else [])
+            if wid and wid not in iids:
+                continue
+            cuuid = u.get("config_uuid") or uid
+            deadline = 0
+            if u.get("expire_at"):
+                try:
+                    deadline = int(datetime.fromisoformat(u["expire_at"]).timestamp())
+                except Exception:
+                    deadline = 0
+            users.append({
+                "uuid": cuuid,
+                "remark": u.get("username", uid),
+                "limit_bytes": int(u.get("traffic_limit_bytes") or 0),
+                "expire": deadline,
+                "used_bytes": int(u.get("traffic_used_bytes") or 0),
+                "concurrent_connections": int(u.get("concurrent_connections") or 0),
+                "countries": list(u.get("proxy_countries") or ([u.get("proxy_country")] if u.get("proxy_country") else [])),
+                "disabled": (u.get("status") or "active") != "active",
+            })
+    locations = []
+    for code, p in (WORKER.get("proxies") or {}).items():
+        locations.append({"code": code, "country": p.get("country", code.upper()),
+                          "proxy": p.get("proxy", ""), "port": p.get("port", 443),
+                          "proxies": p.get("proxies", [p.get("proxy")])})
+    try:
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+            r = await client.post(
+                f"https://{domain}/panel/config",
+                headers={"Authorization": f"Bearer {ctrl}"},
+                json={"users": users, "routes": {"locations": locations}, "settings": {}},
+            )
+        if r.status_code == 200:
+            data = {}
+            try:
+                data = r.json()
+            except Exception:
+                pass
+            async with WORKER_LOCK:
+                WORKER["remote_status"] = "online"
+                WORKER["last_heartbeat"] = now_ir().isoformat(timespec="seconds")
+                WORKER["worker_user_count"] = int(data.get("users") or len(users))
+                WORKER["worker_traffic_bytes"] = int(data.get("traffic") or 0)
+                WORKER["worker_users_online"] = int(data.get("online") or 0)
+            asyncio.create_task(save_state())
+            return {"ok": True, "detail": "config pushed", "users": data.get("users", len(users))}
+        return {"ok": False, "detail": f"worker returned HTTP {r.status_code}: {r.text[:120]}"}
+    except Exception as e:
+        return {"ok": False, "detail": str(e)}
+
+async def _worker_pull_status() -> dict:
+    """Pull live status from the worker's GET /panel/status API.
+
+    Returns {ok, online, traffic, users} and records a heartbeat timestamp so
+    the UI can show how fresh the remote state is.
+    """
+    domain = str(WORKER.get("worker_domain") or "").strip().lower()
+    ctrl = str(WORKER.get("control_token") or "")
+    if not domain or not ctrl or domain in ("localhost", "0.0.0.0", "127.0.0.1"):
+        return {"ok": False, "detail": "worker not connected"}
+    try:
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+            r = await client.get(f"https://{domain}/panel/status",
+                                 headers={"Authorization": f"Bearer {ctrl}"})
+        if r.status_code != 200:
+            async with WORKER_LOCK:
+                WORKER["remote_status"] = "unreachable"
+            return {"ok": False, "detail": f"HTTP {r.status_code}"}
+        data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+        hb = now_ir().isoformat(timespec="seconds")
+        async with WORKER_LOCK:
+            WORKER["remote_status"] = "online"
+            WORKER["last_heartbeat"] = hb
+            WORKER["worker_user_count"] = int(data.get("users") or 0)
+            WORKER["worker_traffic_bytes"] = int(data.get("traffic") or 0)
+            WORKER["worker_users_online"] = int(data.get("online") or 0)
+        asyncio.create_task(save_state())
+        return {"ok": True, **data}
+    except Exception as e:
+        async with WORKER_LOCK:
+            WORKER["remote_status"] = "unreachable"
+        return {"ok": False, "detail": str(e)}
+
 async def _worker_control_update() -> dict:
     """Push the proxy pool to the deployed VLESS worker via its admin API.
 
@@ -6489,9 +6668,17 @@ async def worker_get(_=Depends(require_auth)):
 
 @app.post("/api/worker/setup")
 async def worker_setup(request: Request, _=Depends(require_auth)):
-    """Connect to Cloudflare: verify token + auto-detect account, auto-discover
-    the worker name and domain, deploy the worker script and store the connection.
-    Account ID is auto-detected from the token — no manual entry needed."""
+    """Create a brand-new managed worker on the user's Cloudflare account.
+
+    The panel never searches for an existing subdomain/worker. Instead it:
+      1. verifies the API token and auto-detects the account id,
+      2. ensures the account has a workers.dev subdomain (registers one if missing),
+      3. generates a fresh random worker name (spider-xxxxxx),
+      4. creates a dedicated KV namespace ({name}-db) for that worker only,
+      5. deploys worker.js with the KV binding baked in,
+      6. enables workers.dev for the new script,
+      7. pushes users/routes via the remote-control API (/panel/config).
+    """
     body = await request.json()
     token = str(body.get("token") or "").strip()
     # Account ID and Email are intentionally not collected from the user.
@@ -6509,47 +6696,55 @@ async def worker_setup(request: Request, _=Depends(require_auth)):
         msg = (data.get("errors") or [{}])[0].get("message", "invalid token")
         raise HTTPException(status_code=400, detail=f"Cloudflare token rejected: {msg}")
 
-    # 2. Auto-detect account_id if not provided (list accounts and pick the first one).
+    # 2. Auto-detect account_id (list accounts and pick the first one).
+    code_acc, data_acc = await _cf_api("GET", "/accounts?page=1&per_page=50", token, email=email)
+    if code_acc == 200 and data_acc.get("result"):
+        accounts = data_acc["result"]
+        if isinstance(accounts, list) and len(accounts) > 0:
+            account_id = accounts[0].get("id", "")
     if not account_id:
-        code_acc, data_acc = await _cf_api("GET", "/accounts?page=1&per_page=50", token, email=email)
-        if code_acc == 200 and data_acc.get("result"):
-            accounts = data_acc["result"]
-            if isinstance(accounts, list) and len(accounts) > 0:
-                account_id = accounts[0].get("id", "")
-        if not account_id:
-            # Cloudflare returns 403/10000 here when the token is valid but lacks
-            # account-scoped Workers permissions. Surface the actual API error.
-            detail = "Could not auto-detect Cloudflare Account ID. Token must include account-scoped Workers Scripts/Routes/KV permissions."
-            errs = data_acc.get("errors") or []
-            if errs:
-                detail = "Cloudflare account lookup failed: " + "; ".join(str(e.get("message") or e.get("code") or "unknown error") for e in errs[:3])
-            raise HTTPException(status_code=400, detail=detail)
+        # Cloudflare returns 403/10000 here when the token is valid but lacks
+        # account-scoped Workers permissions. Surface the actual API error.
+        detail = "Could not auto-detect Cloudflare Account ID. Token must include account-scoped Workers Scripts/Routes/KV permissions."
+        errs = data_acc.get("errors") or []
+        if errs:
+            detail = "Cloudflare account lookup failed: " + "; ".join(str(e.get("message") or e.get("code") or "unknown error") for e in errs[:3])
+        raise HTTPException(status_code=400, detail=detail)
 
-    # 3. Discover the worker name + subdomain from the account.
-    worker_name = str(body.get("worker_name") or "spider-proxy").strip()
-    worker_domain = ""
+    # 3. Ensure the account has a workers.dev subdomain; register one if absent
+    #    so the user never has to open the Cloudflare dashboard manually.
+    subdom = ""
     code, data = await _cf_api("GET", f"/accounts/{account_id}/workers/subdomain", token, email=email)
     if code == 200 and data.get("result"):
         subdom = str(data["result"].get("subdomain") or "").strip()
-        if subdom:
-            worker_domain = _worker_safe_domain(f"{worker_name}.{subdom}.workers.dev")
-    if not worker_domain:
-        # Fallback: try to read the existing script's domain (if it was deployed before).
-        code2, data2 = await _cf_api("GET", f"/accounts/{account_id}/workers/scripts/{worker_name}", token, email=email)
-        if code2 in (200, 404):
-            pass  # script check only; domain comes from subdomain above
-    if not worker_domain:
-        no_subdomain = any(e.get("code") == 10007 for e in (data.get("errors") or []))
-        if no_subdomain:
-            raise HTTPException(
-                status_code=400,
-                detail="این اکانت هنوز workers.dev subdomain ندارد — یک بار صفحه Workers & Pages را در داشبورد Cloudflare باز کنید "
-                       "تا ساب‌دامین ساخته شود، سپس دوباره وصل شوید. "
-                       "(Account has no workers.dev subdomain yet — open the Workers & Pages page in the Cloudflare dashboard once, then retry.)",
-            )
-        raise HTTPException(status_code=400, detail="could not resolve worker subdomain — check the API token has Workers:Edit permission")
+    if not subdom:
+        # No subdomain yet → register a fresh one derived from the account id.
+        reg_name = "spider-" + account_id[:8].lower()
+        creg, dreg = await _cf_api(
+            "PUT", f"/accounts/{account_id}/workers/subdomain", token,
+            {"subdomain": reg_name}, email=email,
+        )
+        if creg in (200, 201) and dreg.get("result"):
+            subdom = str(dreg["result"].get("subdomain") or reg_name).strip()
+        else:
+            no_subdomain = any(e.get("code") == 10007 for e in (data.get("errors") or []))
+            if no_subdomain:
+                raise HTTPException(
+                    status_code=400,
+                    detail="ساخت workers.dev subdomain ناموفق بود — توکن باید Workers Scripts:Edit داشته باشد. "
+                           "(Could not register a workers.dev subdomain — the token needs Workers Scripts:Edit.)",
+                )
+            raise HTTPException(status_code=400, detail="could not resolve/register workers.dev subdomain — check the API token has Workers:Edit permission")
+    if not subdom:
+        raise HTTPException(status_code=400, detail="could not resolve workers.dev subdomain")
 
-    # 3. Save connection, then deploy the worker script.
+    # 4. Generate a fresh random worker name — every setup creates a NEW worker.
+    worker_name = str(body.get("worker_name") or "").strip().lower()
+    if not re.fullmatch(r"[a-z][a-z0-9-]{0,30}", worker_name or ""):
+        worker_name = "spider-" + secrets.token_hex(3)
+    worker_domain = _worker_safe_domain(f"{worker_name}.{subdom}.workers.dev")
+
+    # 5. Save connection state, then create KV + deploy.
     async with WORKER_LOCK:
         WORKER.update({
             "connected": True,
@@ -6558,8 +6753,17 @@ async def worker_setup(request: Request, _=Depends(require_auth)):
             "worker_domain": worker_domain,
             "worker_url": f"https://{worker_domain}",
             "token": token,
+            # A new worker starts with a fresh dedicated KV namespace.
+            "kv_namespace_id": "",
+            "kv_namespace_title": "",
+            "remote_status": "",
+            "last_heartbeat": "",
+            "worker_users_online": 0,
+            "worker_traffic_bytes": 0,
+            "worker_user_count": 0,
             "last_error": "",
         })
+    kv_id = await _ensure_worker_kv()
     sc, sd = await _worker_deploy()
     await _worker_enable_workers_dev()
     if sc not in (200, 201, 409):
@@ -6568,17 +6772,22 @@ async def worker_setup(request: Request, _=Depends(require_auth)):
             WORKER["last_error"] = msg
         asyncio.create_task(save_state())
         raise HTTPException(status_code=500, detail=f"Worker deploy failed: {msg}")
-    # Deployed with a fresh control token; tell the worker the proxy map now.
-    ctrl_res = await _worker_control_update()
+    # Deployed with a fresh control token; push the full config (users+routes).
+    ctrl_res = await _worker_push_config()
+    if not ctrl_res.get("ok"):
+        # Fall back to the per-user sync path when the bulk push failed.
+        await _worker_control_update()
+        await _worker_sync_users()
+    # Pull back the worker-generated configs (its own domain + /route paths)
+    # so each panel user's sub serves exactly what this worker accepts.
+    await _worker_pull_all_users()
     # Auto-create/refresh the default Worker inbound to the connected domain.
     await _ensure_worker_inbound()
-    # Push all panel users to the worker's KV so VLESS auth + quotas work.
-    await _worker_sync_users()
     async with WORKER_LOCK:
         WORKER["last_sync"] = now_ir().isoformat(timespec="seconds")
         WORKER["last_error"] = "" if ctrl_res.get("ok") else ctrl_res.get("detail", "")
     asyncio.create_task(save_state())
-    log_activity("worker", f"Worker متصل شد ({worker_name})", "ok")
+    log_activity("worker", f"Worker جدید ساخته شد ({worker_name} / KV: {WORKER.get('kv_namespace_title') or kv_id})", "ok")
     async with WORKER_LOCK:
         return {"ok": True, **_worker_public()}
 
@@ -6591,7 +6800,12 @@ async def worker_sync(_=Depends(require_auth)):
     sc, sd = await _worker_deploy()
     await _worker_enable_workers_dev()
     if sc in (200, 201, 409):
-        await _worker_sync_users()
+        # Prefer the single remote-control push; fall back to per-user sync.
+        push = await _worker_push_config()
+        if not push.get("ok"):
+            await _worker_control_update()
+            await _worker_sync_users()
+        await _worker_pull_all_users()
         await _ensure_worker_inbound()
     async with WORKER_LOCK:
         if sc in (200, 201, 409):
@@ -6632,6 +6846,17 @@ async def worker_settings(request: Request, _=Depends(require_auth)):
     return out
 
 
+@app.post("/api/worker/heartbeat")
+async def worker_heartbeat(_=Depends(require_auth)):
+    """Ping the worker's /panel/status and refresh remote counters (traffic,
+    online users, user count). Called by the UI on a timer."""
+    if not WORKER.get("connected"):
+        raise HTTPException(status_code=400, detail="worker is not connected")
+    res = await _worker_pull_status()
+    async with WORKER_LOCK:
+        out = {"ok": bool(res.get("ok")), "detail": res.get("detail", ""), **_worker_public()}
+    return out
+
 @app.delete("/api/worker")
 async def worker_disconnect(_=Depends(require_auth)):
     """Remove the worker connection (keeps nothing sensitive)."""
@@ -6644,6 +6869,13 @@ async def worker_disconnect(_=Depends(require_auth)):
             "worker_domain": "",
             "worker_url": "",
             "token": "",
+            "kv_namespace_id": "",
+            "kv_namespace_title": "",
+            "remote_status": "",
+            "last_heartbeat": "",
+            "worker_users_online": 0,
+            "worker_traffic_bytes": 0,
+            "worker_user_count": 0,
             "proxies": {},
             "last_sync": "",
             "last_error": "",

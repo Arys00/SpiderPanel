@@ -13,6 +13,8 @@
 //   __PANEL_DOMAIN__  → panel public domain (JSON string)
 // ══════════════════════════════════════════════════════════════════════════════
 
+import { connect } from "cloudflare:sockets";
+
 const PANEL_TOKEN = __PANEL_TOKEN__;
 const PANEL_DOMAIN = __PANEL_DOMAIN__;
 const WORKER_DOMAIN = __WORKER_DOMAIN__;
@@ -154,6 +156,7 @@ async function getCountryProxy(env, code) {
 }
 
 // ── Outbound Connection ─────────────────────────────────────────────────────
+// connect() comes from the cloudflare:sockets module import at the top.
 function getConnector() {
   return typeof connect === 'function' ? connect : null;
 }
@@ -436,6 +439,77 @@ function workerConfigsForUser(u) {
 }
 
 // ── Admin API (Bearer PANEL_TOKEN) ──
+    // Remote control: the panel pushes the full config (users + routes +
+    // settings) in one call; the worker stores it in its dedicated KV and
+    // answers with a summary. GET /panel/status returns live counters.
+    if (path === '/panel/config' && request.method === 'POST') {
+      if (!authorized(request)) return json({ error: 'Forbidden' }, 403);
+      let body;
+      try { body = await request.json(); } catch (e) { return json({ error: 'bad json' }, 400); }
+      const users = Array.isArray(body.users) ? body.users : [];
+      let written = 0, traffic = 0, online = 0;
+      const now = Date.now() / 1000;
+      // Replace the user set with exactly what the panel sent (disabled users
+      // are dropped so the worker stops authenticating them).
+      const existing = await env.SPIDER_KV.list({ prefix: 'user:' });
+      const keep = new Set();
+      for (const u of users) {
+        const uuid = String(u.uuid || '').toLowerCase();
+        if (!uuidRe().test(uuid)) continue;
+        if (u.disabled) continue;
+        const rec = {
+          uuid,
+          remark: String(u.remark || 'user'),
+          limit_bytes: Number(u.limit_bytes) || 0,
+          expire: Number(u.expire) || 0,
+          used_bytes: Number(u.used_bytes) || 0,
+          proxy_ip: String(u.proxy_ip || ''),
+          concurrent_connections: Number(u.concurrent_connections) || 0,
+          countries: Array.isArray(u.countries) ? u.countries.map(x => String(x).toLowerCase()).filter(Boolean) : [],
+          created: Date.now(),
+        };
+        rec.configs = workerConfigsForUser(rec);
+        keep.add('user:' + uuid);
+        await env.SPIDER_KV.put('user:' + uuid, JSON.stringify(rec));
+        written++;
+        traffic += rec.used_bytes || 0;
+        if (rec.expire && now > rec.expire) continue;
+        if (rec.limit_bytes > 0 && rec.used_bytes >= rec.limit_bytes) continue;
+        online++;
+      }
+      for (const k of existing.keys) {
+        if (!keep.has(k.name)) await env.SPIDER_KV.delete(k.name);
+      }
+      if (body.routes && typeof body.routes === 'object') {
+        const locations = Array.isArray(body.routes.locations) ? body.routes.locations : [];
+        await env.SPIDER_KV.put('proxies', JSON.stringify(locations));
+      }
+      if (body.settings && typeof body.settings === 'object') {
+        await env.SPIDER_KV.put('settings', JSON.stringify(body.settings));
+      }
+      await env.SPIDER_KV.put('heartbeat', JSON.stringify({ at: Date.now(), users: written }));
+      return json({ ok: true, users: written, traffic, online });
+    }
+
+    if (path === '/panel/status' && request.method === 'GET') {
+      if (!authorized(request)) return json({ error: 'Forbidden' }, 403);
+      let users = 0, traffic = 0, online = 0;
+      const list = await env.SPIDER_KV.list({ prefix: 'user:' });
+      const now = Date.now() / 1000;
+      for (const k of list.keys) {
+        try {
+          const u = JSON.parse(await env.SPIDER_KV.get(k.name));
+          if (!u) continue;
+          users++;
+          traffic += u.used_bytes || 0;
+          if (u.expire && now > u.expire) continue;
+          if (u.limit_bytes > 0 && (u.used_bytes || 0) >= u.limit_bytes) continue;
+          online++;
+        } catch (e) {}
+      }
+      return json({ ok: true, users, traffic, online });
+    }
+
     if (path.startsWith('/api/')) {
       if (!authorized(request)) return json({ error: 'Forbidden' }, 403);
 
