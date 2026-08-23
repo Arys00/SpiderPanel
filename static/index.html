@@ -988,6 +988,14 @@ tr{animation:fadeIn .3s ease}
         <span class="nav-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
         <span data-i18n="worker">Worker</span>
       </div>
+      <div class="nav-item" onclick="switchTab('autoconfig',this)">
+        <span class="nav-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/><circle cx="12" cy="12" r="4"/></svg></span>
+        <span data-i18n="autoconfig">Auto Config</span>
+      </div>
+      <div class="nav-item" id="nav-tunnel" onclick="switchTab('tunnel',this)">
+        <span class="nav-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10a8 8 0 0116 0v10"/><line x1="2" y1="20" x2="22" y2="20"/><line x1="9" y1="20" x2="9" y2="13"/><line x1="15" y1="20" x2="15" y2="13"/></svg></span>
+        <span data-i18n="tunnel">Tunnel</span>
+      </div>
       <div class="nav-item" onclick="switchTab('settings',this)">
         <span class="nav-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></span>
         <span data-i18n="settings">تنظیمات</span>
@@ -1417,6 +1425,116 @@ tr{animation:fadeIn .3s ease}
             <button class="btn btn-p" style="width:100%"><span data-i18n="changePassBtn">تغییر رمز</span></button>
           </form>
         </div>
+
+        <div class="panel">
+          <div class="panel-h"><span class="glow" data-i18n="panelUpdate">بروزرسانی پنل</span></div>
+          <div class="px-hint" data-i18n="panelUpdateHint">با زدن این دکمه، آخرین نسخه ریپو از GitHub دریافت و روی سرور نصب می‌شود (amirh00sain/SpiderPanel). بعد از اتمام، پنل را در Railway ری‌استارت/ری‌دپلوی کنید تا نسخه جدید اعمال شود.</div>
+          <button class="btn btn-p" style="width:100%;margin-top:10px" id="upd-btn" onclick="runPanelUpdate()"><span data-i18n="updatePanel">بروزرسانی</span></button>
+          <pre id="upd-log" dir="ltr" style="display:none;margin-top:10px;padding:10px;border-radius:8px;background:var(--bg2,#111);color:var(--green);font-size:11px;max-height:220px;overflow-y:auto;white-space:pre-wrap;font-family:monospace"></pre>
+        </div>
+
+        <div class="panel">
+          <div class="panel-h"><span class="glow" data-i18n="backupRestore">بکاپ و بازیابی</span></div>
+          <div class="px-hint" data-i18n="backupRestoreHint">بکاپ کامل شامل: کاربران، لینک‌ها، اینباندها، اسکن‌ها، تنظیمات، رمز، گروه‌ها و تنظیمات Worker. فایل JSON دانلود/آپلود می‌شود.</div>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <button class="btn btn-p" style="flex:1" onclick="downloadBackup()"><span data-i18n="backup">بکاپ (دانلود)</span></button>
+            <button class="btn btn-g" style="flex:1" onclick="document.getElementById('restore-file').click()"><span data-i18n="restore">بازیابی (آپلود)</span></button>
+          </div>
+          <input type="file" id="restore-file" accept=".json" style="display:none" onchange="uploadRestore(this)">
+          <pre id="restore-log" dir="ltr" style="display:none;margin-top:10px;padding:10px;border-radius:8px;background:var(--bg2,#111);color:var(--orange);font-size:11px;max-height:150px;overflow-y:auto;white-space:pre-wrap;font-family:monospace"></pre>
+        </div>
+      </div>
+
+      <!-- AUTO CONFIG TAB -->
+      <div class="tab-content hidden" id="tab-autoconfig">
+        <div class="panel">
+          <div style="text-align:center;padding:30px 0 20px">
+            <button class="btn btn-p" id="ac-auto-btn" onclick="acStart()" style="font-size:16px;padding:14px 60px;border-radius:14px">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="vertical-align:-3px"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+              <span data-i18n="acAutoBtn">Auto</span>
+            </button>
+            <div class="px-hint" style="margin-top:12px" data-i18n="acHint">اسکن کامل خودکار: پینگ دامنه‌ها → انتخاب Railway/Cloudflare → اسکن IP → تست دامنه‌های TCP → اسکن SNI → پینگ نهایی پنل. همه مراحل با اینترنت خود شما انجام می‌شود.</div>
+          </div>
+          <!-- Step 0: domain input -->
+          <div class="f-g" id="ac-domain-wrap" style="display:flex;gap:8px">
+            <input type="text" id="ac-domain" dir="ltr" placeholder="your-panel.up.railway.app" style="flex:1">
+          </div>
+          <!-- Progress log -->
+          <div class="scn-list" id="ac-log" style="margin-top:12px;display:none"></div>
+          <!-- Results -->
+          <div id="ac-results" style="margin-top:12px"></div>
+        </div>
+      </div>
+
+      <!-- TUNNEL TAB -->
+      <div class="tab-content hidden" id="tab-tunnel">
+        <div class="panel" id="tunnel-notready">
+          <div class="panel-h"><span class="glow" data-i18n="tunnel">Tunnel</span></div>
+          <div class="px-hint" data-i18n="tunnelNotReady">ابتدا یک Worker در تب Worker بسازید — بخش Tunnel بعد از ساخت Worker فعال می‌شود.</div>
+        </div>
+        <div class="panel hidden" id="tunnel-ready">
+          <div class="panel-h" style="justify-content:space-between">
+            <span class="glow" data-i18n="tunnel">Tunnel</span>
+            <span id="tn-status-badge" class="badge badge-g" style="margin-right:auto"></span>
+          </div>
+          <div class="set-row">
+            <span class="set-lbl" data-i18n="tunnelPath">مسیر اتصال</span>
+            <span dir="ltr" style="font-size:12px;color:var(--txt)">User → Railway → Cloudflare Worker → Site</span>
+          </div>
+          <div class="set-row">
+            <span class="set-lbl" data-i18n="workerPing">پینگ سرور تا Worker</span>
+            <span id="tn-ping" dir="ltr" style="font-size:12px;color:var(--neon)">--</span>
+          </div>
+          <div class="set-row">
+            <span class="set-lbl" data-i18n="workerUrl">Worker URL</span>
+            <a id="tn-url" href="#" target="_blank" rel="noopener" dir="ltr" style="color:var(--neon);font-size:12px"></a>
+          </div>
+          <div class="set-row">
+            <span class="set-lbl" data-i18n="tunnelKv">KV اختصاصی Tunnel</span>
+            <span id="tn-kv" dir="ltr" style="font-size:11px;font-family:monospace;color:var(--txt2);word-break:break-all"></span>
+          </div>
+          <div class="set-row">
+            <span class="set-lbl" data-i18n="tunnelInboundPath">اینباند (TLS WS)</span>
+            <span id="tn-inbound-path" dir="ltr" style="font-size:11px;font-family:monospace;color:var(--txt)"></span>
+          </div>
+          <div class="set-row">
+            <span class="set-lbl" data-i18n="lastHeartbeat">آخرین Heartbeat</span>
+            <span id="tn-heartbeat" dir="ltr" style="font-size:12px;color:var(--txt2)"></span>
+          </div>
+
+          <!-- REVERSE (below tunnel info) -->
+          <div class="panel-h" style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px">
+            <span class="glow" data-i18n="reverse">Reverse</span>
+          </div>
+          <div class="set-row" style="border-bottom:none">
+            <span class="set-lbl">
+              <span data-i18n="reverseSwitch">حالت Reverse</span>
+              <div class="px-hint" style="font-size:10px;margin-top:2px" data-i18n="reverseHint">با روشن کردن این سوییچ، مسیر اتصال برعکس می‌شود: User → Worker → Railway → Site. دامنه کانفیگ، دامنه Worker و مسیر /reverse/{uuid} خواهد بود.</div>
+            </span>
+            <button type="button" class="ios-switch" id="tn-reverse-sw" onclick="tunnelToggleReverse(this)" title="Reverse"></button>
+          </div>
+          <div id="tn-reverse-info" class="hidden">
+            <div class="set-row">
+              <span class="set-lbl" data-i18n="tunnelPath">مسیر اتصال</span>
+              <span dir="ltr" style="font-size:12px;color:var(--txt)">User → Cloudflare Worker → Railway → Site</span>
+            </div>
+            <div class="set-row">
+              <span class="set-lbl" data-i18n="workerPing">پینگ سرور تا Worker</span>
+              <span id="tn-reverse-ping" dir="ltr" style="font-size:12px;color:var(--neon)">--</span>
+            </div>
+            <div class="set-row">
+              <span class="set-lbl" data-i18n="tunnelInboundPath">دامنه و مسیر</span>
+              <span id="tn-reverse-path" dir="ltr" style="font-size:11px;font-family:monospace;color:var(--txt)"></span>
+            </div>
+            <div class="set-row">
+              <span class="set-lbl" data-i18n="tunnelKv">KV اختصاصی Reverse</span>
+              <span id="tn-reverse-kv" dir="ltr" style="font-size:11px;font-family:monospace;color:var(--txt2);word-break:break-all"></span>
+            </div>
+          </div>
+
+          <div class="scn-list" id="tn-logs" style="margin-top:10px"></div>
+          <button class="btn btn-p" style="width:100%;margin-top:12px" id="tn-create-btn" onclick="tunnelCreate()"><span data-i18n="tunnelCreate">ایجاد اینباند Tunnel</span></button>
+        </div>
       </div>
 
       <!-- CONTACT TAB -->
@@ -1730,6 +1848,17 @@ var I18N = {
     'srv': 'وضعیت زنده سرور', 'cpu': 'پردازنده', 'ram': 'حافظه رم', 'disk': 'دیسک', 'sent': 'ارسال', 'recv': 'دریافت', 'activeUsers': 'کاربران فعال/کل', 'trafficUsed': 'ترافیک مصرفی', 'activeConns': 'اتصالات فعال', 'uptime': 'زمان فعالیت',
     'goodMorning': 'صبح بخیر', 'goodNoon': 'ظهر بخیر', 'goodEvening': 'عصر بخیر', 'admin': 'ادمین',
     'toast.userCreated': 'کاربر ایجاد شد', 'toast.userUpdated': 'کاربر بروزرسانی شد', 'toast.userDeleted': 'کاربر حذف شد', 'toast.userToggled': 'وضعیت کاربر تغییر کرد', 'toast.inboundSaved': 'اینباند ذخیره شد', 'toast.domainSaved': 'دامنه ذخیره شد', 'toast.passChanged': 'رمز تغییر کرد', 'toast.err': 'خطا',
+    'backupDownloaded': 'بکاپ دانلود شد', 'restoreDone': 'بازیابی انجام شد', 'restoreFailed': 'بازیابی ناموفق', 'restoreUploading': 'در حال آپلود و بازیابی...', 'restoreUploadFailed': 'آپلود ناموفق',
+    'panelUpdate': 'بروزرسانی پنل', 'updatePanel': 'بروزرسانی', 'confirmUpdate': 'پنل از GitHub بروزرسانی شود؟', 'updateStarted': 'بروزرسانی شروع شد...', 'updateDone': 'بروزرسانی کامل شد — پنل را ری‌استارت کنید', 'updateFailed': 'بروزرسانی ناموفق بود', 'updateRunning': 'در حال بروزرسانی...',
+    'panelUpdateHint': 'با زدن این دکمه، آخرین نسخه ریپو از GitHub دریافت و روی سرور نصب می‌شود (amirh00sain/SpiderPanel). بعد از اتمام، پنل را در Railway ری‌استارت/ری‌دپلوی کنید تا نسخه جدید اعمال شود.',
+    'backupRestore': 'بکاپ و بازیابی', 'backup': 'بکاپ (دانلود)', 'restore': 'بازیابی (آپلود)', 'backupRestoreHint': 'بکاپ کامل شامل: کاربران، لینک‌ها، اینباندها، اسکن‌ها، تنظیمات، رمز، گروه‌ها و تنظیمات Worker. فایل JSON دانلود/آپلود می‌شود.',
+    'autoconfig': 'Auto Config', 'tunnel': 'Tunnel',
+    'acAutoBtn': 'Auto', 'acHint': 'اسکن کامل خودکار: پینگ دامنه‌ها → انتخاب Railway/Cloudflare → اسکن IP → تست دامنه‌های TCP → اسکن SNI → پینگ نهایی پنل. همه مراحل با اینترنت خود شما انجام می‌شود.',
+    'acEnterDomain': 'لطفاً دامنه پنل را وارد کنید', 'acPingingDomains': 'در حال گرفتن پینگ از دامنه‌ها...', 'acYourDomain': 'دامنه شما', 'acPickDomain': 'دامنه را انتخاب کنید (دامنه Railway → اسکن IP های Railway، غیر از آن → اسکن IP های Cloudflare):',
+    'acScanningRailway': 'اسکن IP های Railway و ذخیره ۱۰ تای برتر...', 'acScanningCf': 'اسکن IP های Cloudflare و ذخیره ۱۰ تای برتر...',
+    'acTcpTesting': 'تست دامنه‌های TCP (دامنه + IP هر دو تست می‌شوند)...', 'acSniTesting': 'تست SNI ها و ذخیره سریع‌ترین‌ها...', 'acFinalPing': 'پینگ نهایی به دامنه فعلی پنل...', 'acDone': 'اتمام اسکن خودکار ✓',
+    'tunnelNotReady': 'ابتدا یک Worker در تب Worker بسازید — بخش Tunnel بعد از ساخت Worker فعال می‌شود.', 'tunnelPath': 'مسیر اتصال', 'workerPing': 'پینگ سرور تا Worker', 'tunnelKv': 'KV اختصاصی Tunnel', 'tunnelInboundPath': 'اینباند (TLS WS)', 'tunnelCreate': 'ایجاد اینباند Tunnel', 'tunnelCreated': 'اینباند Tunnel ساخته شد', 'tunnelNoWorker': 'Worker متصل نیست',
+    'reverse': 'Reverse', 'reverseSwitch': 'حالت Reverse', 'reverseHint': 'با روشن کردن این سوییچ، مسیر اتصال برعکس می‌شود: User → Worker → Railway → Site. دامنه کانفیگ، دامنه Worker و مسیر /reverse/{uuid} خواهد بود.', 'reverseOn': 'Reverse فعال شد', 'reverseOff': 'Reverse غیرفعال شد',
     'login': { 'signIn': 'Sign In' }
   },
   en: {
@@ -1778,6 +1907,17 @@ var I18N = {
     'srv': 'Live Server Status', 'cpu': 'CPU', 'ram': 'RAM', 'disk': 'Disk', 'sent': 'Sent', 'recv': 'Received', 'activeUsers': 'Active / Total Users', 'trafficUsed': 'Traffic Used', 'activeConns': 'Active Connections', 'uptime': 'Uptime',
     'goodMorning': 'Good morning', 'goodNoon': 'Good afternoon', 'goodEvening': 'Good evening', 'admin': 'Admin',
     'toast.userCreated': 'User created', 'toast.userUpdated': 'User updated', 'toast.userDeleted': 'User deleted', 'toast.userToggled': 'User status changed', 'toast.inboundSaved': 'Inbound saved', 'toast.domainSaved': 'Domain saved', 'toast.passChanged': 'Password changed', 'toast.err': 'Error',
+    'backupDownloaded': 'Backup downloaded', 'restoreDone': 'Restore completed', 'restoreFailed': 'Restore failed', 'restoreUploading': 'Uploading and restoring...', 'restoreUploadFailed': 'Upload failed',
+    'panelUpdate': 'Panel Update', 'updatePanel': 'Update', 'confirmUpdate': 'Update the panel from GitHub?', 'updateStarted': 'Update started...', 'updateDone': 'Update finished — restart the panel to apply', 'updateFailed': 'Update failed', 'updateRunning': 'Updating...',
+    'panelUpdateHint': 'Clicking this pulls the latest repo from GitHub and installs it on the server (amirh00sain/SpiderPanel). When finished, restart/redeploy the panel on Railway to apply the new version.',
+    'backupRestore': 'Backup & Restore', 'backup': 'Backup (Download)', 'restore': 'Restore (Upload)', 'backupRestoreHint': 'Full backup includes: users, links, inbounds, scans, settings, password, groups, and Worker config. JSON file is downloaded/uploaded.',
+    'autoconfig': 'Auto Config', 'tunnel': 'Tunnel',
+    'acAutoBtn': 'Auto', 'acHint': 'Full automatic scan: ping domains → pick Railway/Cloudflare → IP scan → TCP domain test → SNI scan → final panel ping. All steps run from your own internet.',
+    'acEnterDomain': 'Please enter the panel domain', 'acPingingDomains': 'Pinging domains...', 'acYourDomain': 'Your domain', 'acPickDomain': 'Pick a domain (Railway → scan Railway IPs, otherwise → scan Cloudflare IPs):',
+    'acScanningRailway': 'Scanning Railway IPs, saving top 10...', 'acScanningCf': 'Scanning Cloudflare IPs, saving top 10...',
+    'acTcpTesting': 'Testing TCP domains (both domain and resolved IP)...', 'acSniTesting': 'Testing SNIs and saving the fastest...', 'acFinalPing': 'Final ping to the current panel domain...', 'acDone': 'Auto scan complete ✓',
+    'tunnelNotReady': 'Create a Worker first — the Tunnel section activates once a Worker is connected.', 'tunnelPath': 'Connect path', 'workerPing': 'Server → Worker ping', 'tunnelKv': 'Dedicated Tunnel KV', 'tunnelInboundPath': 'Inbound (TLS WS)', 'tunnelCreate': 'Create Tunnel Inbound', 'tunnelCreated': 'Tunnel inbound created', 'tunnelNoWorker': 'Worker not connected',
+    'reverse': 'Reverse', 'reverseSwitch': 'Reverse mode', 'reverseHint': 'When on, the connect path flips: User → Worker → Railway → Site. The config domain becomes the Worker domain with path /reverse/{uuid}.', 'reverseOn': 'Reverse enabled', 'reverseOff': 'Reverse disabled',
     'login': { 'signIn': 'Sign In' }
   }
 };
@@ -2046,6 +2186,7 @@ function switchTab(tab, el) {
   if (tab === 'inbounds') loadInbounds();
   if (tab === 'scanner') scnInit();
   if (tab === 'worker') loadWorker();
+  if (tab === 'tunnel') loadTunnel();
   closeSidebar();
 }
 
@@ -2858,6 +2999,84 @@ async function changePassword(e) {
   } catch(e) { toast(e.message, 'err'); }
 }
 
+// ─── Panel self-update (Settings tab) ───
+var UPD_POLL = null;
+async function runPanelUpdate() {
+  var btn = $id('upd-btn');
+  var logEl = $id('upd-log');
+  if (!btn || !logEl) return;
+  if (!confirm(t('confirmUpdate'))) return;
+  btn.disabled = true;
+  logEl.style.display = 'block';
+  logEl.textContent = '';
+  try {
+    await api('/api/settings/update', {method: 'POST'});
+    toast(t('updateStarted'), 'ok');
+    if (UPD_POLL) clearInterval(UPD_POLL);
+    UPD_POLL = setInterval(async function() {
+      try {
+        var s = await api('/api/settings/update/status');
+        if (s.log && s.log.length) {
+          logEl.textContent = s.log.join('\n');
+          logEl.scrollTop = logEl.scrollHeight;
+        }
+        if (s.done) {
+          clearInterval(UPD_POLL); UPD_POLL = null;
+          btn.disabled = false;
+          if (s.success) toast(t('updateDone'), 'ok');
+          else toast(t('updateFailed'), 'err');
+        }
+      } catch(e) {}
+    }, 1200);
+  } catch(e) {
+    btn.disabled = false;
+    logEl.style.display = 'none';
+    toast(e.message || t('toast.err'), 'err');
+  }
+}
+
+// ─── Backup/Restore (Settings tab) ───
+async function downloadBackup() {
+  try {
+    var r = await fetch('/api/settings/backup', {credentials: 'same-origin'});
+    if (!r.ok) throw new Error('بکاپ ناموفق: ' + r.status);
+    var blob = await r.blob();
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    var now = new Date();
+    a.download = 'spider-panel-backup-' + now.toISOString().slice(0,19).replace(/[:T]/g,'-') + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast(t('backupDownloaded'), 'ok');
+  } catch(e) { toast(e.message || t('toast.err'), 'err'); }
+}
+
+async function uploadRestore(input) {
+  var file = input.files[0];
+  if (!file) return;
+  var logEl = $id('restore-log');
+  if (!logEl) return;
+  logEl.style.display = 'block';
+  logEl.textContent = t('restoreUploading');
+  try {
+    var form = new FormData();
+    form.append('file', file);
+    var r = await fetch('/api/settings/restore', {method: 'POST', credentials: 'same-origin', body: form});
+    var j = await r.json();
+    if (!r.ok) throw new Error(j.detail || 'بازیابی ناموفق');
+    logEl.textContent = t('restoreDone') + ': ' + (j.detail || '');
+    toast(t('restoreDone'), 'ok');
+    setTimeout(function(){ window.location.reload(); }, 1500);
+  } catch(e) {
+    logEl.textContent = t('restoreFailed') + ': ' + e.message;
+    toast(e.message || t('toast.err'), 'err');
+  }
+  input.value = '';
+}
+
 // ─── Modal ───
 function openModal(id) { $id(id).classList.add('show'); }
 function closeModal(id) { $id(id).classList.remove('show'); }
@@ -3469,6 +3688,249 @@ function scnInit() {
   scnLoadSaved('cf');
   scnLoadSaved('railway');
   spfInit(); // Initialize spoof scanner
+}
+
+// ═══ AUTO CONFIG ═══
+// Full automatic pipeline, all steps run from the USER'S internet (browser
+// ping + backend TCP probe). Flow:
+//   1. ping user-domain, railway.app, worker.dev
+//   2. user picks the domain (Railway → scan Railway IPs, else Cloudflare IPs)
+//   3. scan that provider's IPs, save top 10 (with ping, 1 decimal)
+//   4. test TCP domains (own domain + IP both)
+//   5. scan SNIs, save the fastest
+//   6. final ping to the panel's current domain
+var AC_PING = { user: null, railway: null, worker: null };
+var AC_CHOSEN = null;
+
+function acLog(msg) {
+  var el = $id('ac-log');
+  if (!el) return;
+  el.style.display = 'block';
+  var line = document.createElement('div');
+  line.className = 'scn-item';
+  line.innerHTML = '<span class="scn-ip">' + esc(msg) + '</span>';
+  el.appendChild(line);
+}
+
+async function acPingOne(host) {
+  var t0 = performance.now();
+  try {
+    var ctrl = new AbortController();
+    var timer = setTimeout(function(){ try{ctrl.abort();}catch(e){} }, 6000);
+    await fetch('https://' + host + '/', {mode:'no-cors', cache:'no-store', signal: ctrl.signal});
+    clearTimeout(timer);
+    return Math.round((performance.now() - t0) * 10) / 10;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function acStart() {
+  var d = ($id('ac-domain').value || '').trim().toLowerCase();
+  if (!d) { toast(t('acEnterDomain'), 'warn'); return; }
+  AC_PING = { user: null, railway: null, worker: null };
+  var btn = $id('ac-auto-btn');
+  if (btn) { btn.disabled = true; }
+  $id('ac-log').style.display = 'block';
+  $id('ac-log').innerHTML = '';
+  $id('ac-results').innerHTML = '';
+  AC_PING.user = await acPingOne(d);
+  acLog(t('acYourDomain') + ' (' + esc(d) + '): ' + (AC_PING.user == null ? '✗' : AC_PING.user + ' ms'));
+  acLog(t('acPingingDomains'));
+  var [rw, wk] = await Promise.all([acPingOne('railway.app'), acPingOne('worker.dev')]);
+  AC_PING.railway = rw; AC_PING.worker = wk;
+  acLog('railway.app: ' + (rw == null ? '✗' : rw + ' ms') + '  |  worker.dev: ' + (wk == null ? '✗' : wk + ' ms'));
+  acShowPick();
+  if (btn) { btn.disabled = false; }
+}
+
+function acShowPick() {
+  var results = $id('ac-results');
+  if (!results) return;
+  var wrap = document.getElementById('ac-domain-wrap');
+  if (wrap) wrap.style.display = 'flex';
+  results.innerHTML =
+    '<div class="px-hint" style="margin-bottom:8px">' + t('acPickDomain') + '</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+      '<button class="btn btn-sm btn-p" onclick="acPick(\'railway\')">' + esc(AC_PING.user == null ? '—' : AC_PING.user + 'ms') + ' ▸ railway.app (' + (AC_PING.railway==null?'✗':AC_PING.railway+'ms') + ')</button>' +
+      '<button class="btn btn-sm btn-g" onclick="acPick(\'cloudflare\')">worker.dev (' + (AC_PING.worker==null?'✗':AC_PING.worker+'ms') + ') ▸ cloudflare</button>' +
+    '</div>';
+}
+
+async function acPick(which) {
+  AC_CHOSEN = which;
+  var log = $id('ac-log');
+  var results = $id('ac-results');
+  if (results) results.innerHTML = '';
+  var domWrap = document.getElementById('ac-domain-wrap');
+  if (domWrap) domWrap.style.display = 'none';
+  acLog('✓ ' + (which === 'railway' ? t('acScanningRailway') : t('acScanningCf')));
+  await acScanProvider(which);
+  acLog(t('acTcpTesting'));
+  await acTcpTest();
+  acLog(t('acSniTesting'));
+  await acSniTest();
+  acLog(t('acFinalPing'));
+  var finalPing = await acPingOne(($id('ac-domain').value || '').trim().toLowerCase());
+  acLog((($id('ac-domain').value||'').trim()) + ' → ' + (finalPing == null ? '✗' : finalPing + ' ms'));
+  acLog('✅ ' + t('acDone'));
+}
+
+async function acScanProvider(which) {
+  // Use the same IP ranges the manual scanner uses, ping from user's browser.
+  var ranges = which === 'railway' ? SCN_RW_RANGES : SCN_CF_RANGES;
+  var port = which === 'railway' ? 443 : 443;
+  var count = 60, found = [], tried = 0, loops = 0, BATCH = 32;
+  while (found.length < 10 && loops < 120 && ranges.length) {
+    loops++;
+    var batch = [];
+    for (var b=0; b<BATCH && batch.length < 40; b++)
+      batch.push(scnRandIp(ranges[Math.floor(Math.random()*ranges.length)]) + ':' + port);
+    var resMap = await scnPingBatch(batch, 1.2);
+    Object.keys(resMap).forEach(function(k){
+      tried++;
+      var r = resMap[k];
+      if (r && r.ok) found.push({ip: k.split(':')[0], port: r.port, ms: r.latency_ms});
+    });
+    found.sort(function(a,c){return a.ms - c.ms;});
+    found = found.slice(0, 10);
+    if (loops % 4 === 0) acLog('   یافته: ' + found.length + '/10 (تست ' + tried + ')');
+  }
+  found.sort(function(a,c){return a.ms - c.ms;});
+  found = found.slice(0, 10);
+  // Save top 10 (backend caps at 10) with 1-decimal ping precision.
+  try {
+    var save = await api('/api/scanner/save', {method:'POST', body:{type: which, ips: found.map(function(f){return f.ip+':'+f.port;}), replace: true, seq: (window['scnCtx'] && scnCtx[which] && scnCtx[which].seq) || 0}});
+    if (save && typeof save.seq === 'number' && window['scnCtx'] && scnCtx[which]) scnCtx[which].seq = save.seq;
+  } catch(e){}
+  found.forEach(function(f){ acLog('   💾 ' + f.ip + ':' + f.port + ' (' + (Math.round(f.ms*10)/10) + ' ms)'); });
+}
+
+async function acTcpTest() {
+  var domains = scnDomains.slice();
+  var userDom = ($id('ac-domain').value || '').trim().toLowerCase();
+  if (userDom && domains.indexOf(userDom) === -1) domains.unshift(userDom);
+  var targets = [];
+  domains.forEach(function(d){ targets.push(d + ':443'); });
+  var resMap = await scnPingBatch(targets, 3);
+  for (var i=0; i<domains.length; i++) {
+    var dom = domains[i];
+    var ip = null;
+    try { var dd = await api('/api/scanner/resolve?host=' + encodeURIComponent(dom)); if (dd.ips && dd.ips.length) ip = dd.ips[0]; } catch(e){}
+    var r = resMap[dom + ':443'];
+    var domMs = (r && r.ok) ? r.latency_ms : null;
+    var ipMs = null;
+    if (ip) { var ipr = await scnPingBatch([ip + ':443'], 3); ipMs = (ipr[ip+':443'] && ipr[ip+':443'].ok) ? ipr[ip+':443'].latency_ms : null; }
+    acLog('   🔌 ' + esc(dom) + (ip ? ' (' + ip + ')' : '') + ' → dom:' + (domMs==null?'✗':domMs+'ms') + ' ip:' + (ipMs==null?'✗':ipMs+'ms'));
+  }
+}
+
+async function acSniTest() {
+  var list = SPF_SNI_LIST.slice();
+  if (!list.length) { try { var sr = await api('/api/scanner/sni-list'); list = sr.sni_list || []; } catch(e){} }
+  if (!list.length) { acLog('   (لیست SNI خالی)'); return; }
+  var opts = $id('spf-sni-port') ? $id('spf-sni-port').value : '443';
+  var port = opts || '443';
+  var results = [];
+  for (var i=0; i<list.length; i+=8) {
+    var batch = list.slice(i, i+8);
+    var proms = batch.map(function(s){
+      return api('/api/scanner/sni-check?host=' + encodeURIComponent(s) + '&port=' + port)
+        .then(function(r){ return r; }).catch(function(){ return {ok:false}; });
+    });
+    var rs = await Promise.all(proms);
+    rs.forEach(function(r, j){
+      if (r && r.ok) results.push({sni: batch[j], ms: r.latency_ms});
+    });
+  }
+  results.sort(function(a,c){return a.ms - c.ms;});
+  var top = results.slice(0, 5);
+  try {
+    await api('/api/scanner/sni-save-results', {method:'POST', body:{results: top.map(function(x){return {sni:x.sni, latency_ms:x.ms};}), top: 5}});
+  } catch(e){}
+  top.forEach(function(x){ acLog('   ⚡ ' + esc(x.sni) + ' (' + (Math.round(x.ms*10)/10) + ' ms)'); });
+}
+
+// ═══ TUNNEL ═══
+async function loadTunnel() {
+  var notready = $id('tunnel-notready');
+  var ready = $id('tunnel-ready');
+  if (!notready || !ready) return;
+  try {
+    var s = await api('/api/tunnel/status');
+    var showReady = s.worker_connected;
+    notready.classList.toggle('hidden', showReady);
+    ready.classList.toggle('hidden', !showReady);
+    if (!showReady) return;
+    var badge = $id('tn-status-badge');
+    if (badge) {
+      badge.textContent = (s.remote_status === 'online') ? '● online' : '○ offline';
+      badge.className = 'badge ' + ((s.remote_status === 'online') ? 'badge-g' : 'badge-r');
+    }
+    var pingEl = $id('tn-ping');
+    if (pingEl) pingEl.textContent = s.ping_ms != null ? (s.ping_ms + ' ms') : 'unreachable';
+    var urlEl = $id('tn-url');
+    if (urlEl) { urlEl.textContent = s.worker_url || '—'; urlEl.href = s.worker_url || '#'; }
+    var kvEl = $id('tn-kv');
+    if (kvEl) kvEl.textContent = (s.tunnel_kv_title ? s.tunnel_kv_title + ' · ' : '') + (s.tunnel_kv_id || '—');
+    var pathEl = $id('tn-inbound-path');
+    if (pathEl) pathEl.textContent = s.inbound_exists ? (s.panel_domain + '/tunnel/{uuid}  ·  TLS+WS') : '—';
+    var hbEl = $id('tn-heartbeat');
+    if (hbEl) hbEl.textContent = s.last_heartbeat || '—';
+    var logsEl = $id('tn-logs');
+    if (logsEl) {
+      logsEl.innerHTML = (s.logs || []).slice().reverse().map(function(l){
+        return '<div class="scn-item"><span class="scn-ip">' + esc(l.time.slice(11)) + '</span><span style="font-size:12px;color:var(--txt2)">' + esc(l.msg) + '</span></div>';
+      }).join('') || '<div class="scn-empty">لاگی ثبت نشده</div>';
+    }
+    var btn = $id('tn-create-btn');
+    if (btn) {
+      var exists = !!s.inbound_exists;
+      btn.disabled = exists;
+      btn.textContent = exists ? t('tunnelInboundPath') + ': ✓' : t('tunnelCreate');
+      if (exists) { btn.disabled = false; btn.textContent = t('tunnelCreate'); }
+    }
+    // Reverse section (below tunnel info)
+    var sw = $id('tn-reverse-sw');
+    if (sw) sw.classList.toggle('on', !!s.reverse_enabled);
+    var revInfo = $id('tn-reverse-info');
+    if (revInfo) revInfo.classList.toggle('hidden', !s.reverse_enabled);
+    if (s.reverse_enabled) {
+      var rPing = $id('tn-reverse-ping');
+      if (rPing) rPing.textContent = s.reverse_ping_ms != null ? (s.reverse_ping_ms + ' ms') : 'unreachable';
+      var rPath = $id('tn-reverse-path');
+      if (rPath) rPath.textContent = s.worker_domain + '/reverse/{uuid}';
+      var rKv = $id('tn-reverse-kv');
+      if (rKv) rKv.textContent = (s.reverse_kv_title ? s.reverse_kv_title + ' · ' : '') + (s.reverse_kv_id || '—');
+    }
+  } catch(e) {}
+}
+
+async function tunnelToggleReverse(sw) {
+  if (!sw) return;
+  var enabling = !sw.classList.contains('on');
+  sw.disabled = true;
+  try {
+    await api('/api/tunnel/reverse', {method: 'POST', body: {enabled: enabling}});
+    toast(enabling ? t('reverseOn') : t('reverseOff'), 'ok');
+  } catch(e) {
+    toast(e.message || t('toast.err'), 'err');
+  }
+  sw.disabled = false;
+  loadTunnel();
+}
+
+async function tunnelCreate() {
+  var btn = $id('tn-create-btn');
+  if (!btn) return;
+  btn.disabled = true;
+  btn.textContent = t('updateRunning');
+  try {
+    await api('/api/tunnel/create', {method: 'POST'});
+    toast(t('tunnelCreated'), 'ok');
+  } catch(e) { toast(e.message || t('toast.err'), 'err'); }
+  btn.disabled = false;
+  loadTunnel();
 }
 
 // ═══ SPOOF SCANNER FUNCTIONS ═══

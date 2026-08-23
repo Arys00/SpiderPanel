@@ -180,7 +180,11 @@ async def load_state():
             IP_BLACKLIST.clear()
             IP_BLACKLIST.update(data.get("ip_blacklist", []))
             if isinstance(data.get("worker"), dict):
+                # Preserve connected=True state from saved state; don't let startup logic reset it.
+                was_connected = data["worker"].get("connected", False)
                 WORKER.update(data["worker"])
+                if was_connected:
+                    WORKER["connected"] = True
             logger.info(f"State loaded: {len(LINKS)} links, {len(SUBS)} subs, {len(USERS)} users, {len(GROUPS)} groups, {len(IP_POOL)} ips, {len(INBOUNDS)} inbounds")
     except Exception as e:
         logger.warning(f"Could not load state: {e}")
@@ -432,6 +436,15 @@ WORKER: dict = {
     "auto_sync": True,
     "sync_error": "",
     "sync_count": 0,
+    # Tunnel: dedicated KV + inbound (user → Railway → Worker → site)
+    "tunnel_kv_namespace_id": "",
+    "tunnel_kv_namespace_title": "",
+    "tunnel_enabled": False,
+    "tunnel_created_at": "",
+    "tunnel_logs": [],
+    # Reverse: dedicated KV + mode flag (user → Worker → Railway → site)
+    "reverse_kv_namespace_id": "",
+    "reverse_kv_namespace_title": "",
 }
 WORKER_LOCK = asyncio.Lock()
 # Serialize source syncs (hourly loop + manual button can't overlap).
@@ -1794,6 +1807,31 @@ def generate_user_config(user_id: str, user: dict, inbound_id: str = None, addr:
     # ── TLS (WS default / XHTTP selectable) — served by the FastAPI relay ──
     # address/host/sni always = the panel main domain; port 443 (Railway TLS).
     panel_domain = _safe_host(SETTINGS.get("domain"), get_host())
+
+    # ── TUNNEL (user → Railway → CF Worker → site) — path /tunnel/{uuid} ──
+    if proto == "tunnel":
+        wdom = _worker_safe_domain(WORKER.get("worker_domain"))
+        if not wdom or not WORKER.get("connected"):
+            return ""
+        # Reverse switch ON: user → Worker → Railway → site. The config is
+        # addressed to the WORKER domain with path /reverse/{uuid} and the
+        # user's record lives in REVERSE_KV.
+        if inbound and inbound.get("reverse_enabled"):
+            rpath = f"/reverse/{config_uuid}"
+            params = ("encryption=none&security=tls&type=ws"
+                      f"&host={quote(wdom)}&path={quote(rpath, safe='')}&sni={quote(wdom)}"
+                      "&fp=chrome&alpn=http/1.1")
+            rev_rem = quote(f"Spider-{username} Reverse".strip())
+            return f"vless://{config_uuid}@{wdom}:443?{params}#{rev_rem}"
+        # Plain tunnel: user → Railway → Worker → site (path /tunnel/{uuid},
+        # addressed to the panel/Railway domain).
+        tpath = f"/tunnel/{config_uuid}"
+        params = ("encryption=none&security=tls&type=ws"
+                  f"&host={quote(panel_domain)}&path={quote(tpath, safe='')}&sni={quote(panel_domain)}"
+                  "&fp=chrome&alpn=http/1.1")
+        tun_rem = quote(f"Spider-{username} Tunnel".strip())
+        return f"vless://{config_uuid}@{panel_domain}:443?{params}#{tun_rem}"
+
     host = addr_ip or panel_domain
     port = addr_port or "443"
     # Transport: user's choice first, then the inbound's network, default ws.
@@ -2786,7 +2824,89 @@ async def ws_uuid_handler(ws: WebSocket, uuid: str):
         return
     await websocket_tunnel(ws, uuid)
 
-logger.info("VLESS Relay module loaded (WS: /ws/{uuid})")
+
+# Tunnel path: /tunnel/{uuid} — user → Railway (here) → Cloudflare Worker → site.
+# Railway accepts the client's TLS+WS, then relays raw VLESS bytes to the Worker
+# over an outbound WSS connection to /{uuid} on the worker domain. The Worker
+# authenticates the user from its TUNNEL_KV and connects out to the target.
+@app.websocket("/tunnel/{uuid}")
+async def tunnel_ws_handler(ws: WebSocket, uuid: str):
+    wdom = _worker_safe_domain(WORKER.get("worker_domain"))
+    if not wdom or not WORKER.get("connected"):
+        await ws.close(code=1014, reason="worker not connected")
+        return
+    await _tunnel_relay(ws, uuid, wdom)
+
+
+# Reverse chain leg on Railway: user → Worker → HERE (Railway) → site.
+# The client connects to the Worker domain with /reverse/{uuid}; the Worker
+# relays the raw VLESS stream over WSS to this endpoint, which forwards it to
+# the real destination through the normal proxy_connect pipeline.
+@app.websocket("/reverse/{uuid}")
+async def reverse_ws_handler(ws: WebSocket, uuid: str):
+    await websocket_tunnel(ws, uuid)
+
+
+async def _tunnel_relay(ws: WebSocket, uuid: str, worker_domain: str):
+    """Bridge panel-WS ⇄ worker-WSS bidirectionally."""
+    import websockets as _websockets
+    await ws.accept()
+    link = None
+    async with LINKS_LOCK:
+        link = LINKS.get(uuid)
+    if not is_link_allowed(link):
+        await ws.close(code=1008, reason="not authorized")
+        return
+    ip = ws.headers.get("x-forwarded-for", "").split(",")[0].strip() or (ws.client.host if ws.client else "?")
+    conn_id = secrets.token_urlsafe(6)
+    connections[conn_id] = {"uuid": uuid, "ip": ip, "transport": "tunnel-ws", "connected_at": datetime.now().isoformat(), "bytes": 0}
+    log_activity("connection", f"Tunnel اتصال جدید از {ip}", "info")
+    worker_ws = None
+    try:
+        wss_url = f"wss://{worker_domain}/{uuid}"
+        headers = {"User-Agent": "Spider-Tunnel"}
+        worker_ws = await asyncio.wait_for(
+            _websockets.connect(wss_url, extra_headers=headers, max_size=None), timeout=10.0)
+
+        async def panel_to_worker():
+            while True:
+                msg = await ws.receive()
+                if msg["type"] == "websocket.disconnect":
+                    break
+                data = msg.get("bytes") or (msg.get("text") or "").encode()
+                if data:
+                    connections[conn_id]["bytes"] += len(data)
+                    stats["total_bytes"] += len(data)
+                    await worker_ws.send(data)
+
+        async def worker_to_panel():
+            async for data in worker_ws:
+                if isinstance(data, str):
+                    data = data.encode()
+                await ws.send_bytes(data)
+
+        done, pending = await asyncio.wait(
+            {asyncio.create_task(panel_to_worker()), asyncio.create_task(worker_to_panel())},
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        for t in pending:
+            t.cancel()
+            try:
+                await t
+            except (asyncio.CancelledError, Exception):
+                pass
+    except WebSocketDisconnect:
+        pass
+    except Exception as exc:
+        stats["total_errors"] += 1
+        logger.warning(f"tunnel relay [{conn_id}] error: {exc}")
+    finally:
+        if worker_ws:
+            try: await worker_ws.close()
+            except Exception: pass
+        connections.pop(conn_id, None)
+
+logger.info("VLESS Relay module loaded (WS: /ws/{uuid}, tunnel: /tunnel/{uuid})")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ── HTTP Proxy ────────────────────────────────────────────────────────────────
@@ -3407,11 +3527,11 @@ async def create_user(request: Request, _=Depends(require_auth)):
 
     asyncio.create_task(save_state())
     log_activity("user", f"کاربر «{username}» با پروتکل {protocol} ساخته شد", "ok")
-    # If the user picked the worker inbound, sync them to the worker so VLESS
-    # auth + quotas work on the Cloudflare side too.
+    # If the user picked the worker or tunnel inbound, sync them to the worker
+    # so VLESS auth + quotas work on the Cloudflare side too.
     if WORKER.get("connected") and inbound_ids:
-        wid = next((i for i, ib in INBOUNDS.items() if (ib.get("protocol") or "").lower() == "worker"), None)
-        if wid and wid in inbound_ids:
+        new_u = USERS.get(user_id) or {}
+        if _user_uses_worker_inbound(new_u):
             asyncio.create_task(_worker_sync_users())
     # Generate and persist telegram_secret if user has a Telegram inbound
     if inbound_ids:
@@ -4288,7 +4408,242 @@ async def rotate_security_token(_=Depends(require_auth)):
     return {"ok": True, "security_token": SETTINGS["security_token"]}
 
 
+@app.get("/api/settings/backup")
+async def settings_backup(_=Depends(require_auth)):
+    """Download a complete backup of the panel state as JSON.
 
+    Includes: users, links, subs, settings, groups, inbounds, ip_pool,
+    ip_blacklist, worker config, password hash, and saved secret.
+    """
+    from fastapi.responses import Response
+    backup_data = {
+        "version": "1.0",
+        "timestamp": datetime.now().isoformat(),
+        "links": dict(LINKS),
+        "users": dict(USERS),
+        "subs": dict(SUBS),
+        "settings": dict(SETTINGS),
+        "groups": dict(GROUPS),
+        "inbounds": dict(INBOUNDS),
+        "ip_pool": list(IP_POOL),
+        "ip_blacklist": list(IP_BLACKLIST),
+        "worker": dict(WORKER),
+        "password_hash": AUTH["password_hash"],
+        "saved_secret": CONFIG["secret"],
+    }
+    json_bytes = json.dumps(backup_data, ensure_ascii=False, indent=2).encode("utf-8")
+    filename = f"spider-panel-backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
+    return Response(
+        content=json_bytes,
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
+@app.post("/api/settings/restore")
+async def settings_restore(request: Request, _=Depends(require_auth)):
+    """Restore panel state from a previously downloaded backup JSON file.
+
+    Expects multipart/form-data with a 'file' field containing the backup JSON.
+    WARNING: This will completely replace all panel data (users, links, inbounds, etc).
+    """
+    try:
+        form = await request.form()
+        file = form.get("file")
+        if not file or not hasattr(file, "read"):
+            raise HTTPException(status_code=400, detail="فایل بکاپ ارسال نشده است")
+
+        content = await file.read()
+        if isinstance(content, str):
+            content = content.encode("utf-8")
+
+        data = json.loads(content.decode("utf-8"))
+
+        # Validate backup structure
+        required_keys = ["users", "links", "subs", "settings", "groups", "inbounds",
+                         "ip_pool", "ip_blacklist", "worker", "password_hash", "saved_secret"]
+        for key in required_keys:
+            if key not in data:
+                raise HTTPException(status_code=400, detail=f"بکاپ ناقص است: فیلد {key} وجود ندارد")
+
+        # Restore all state
+        async with LINKS_LOCK:
+            LINKS.clear()
+            LINKS.update(data.get("links", {}))
+        async with USERS_LOCK:
+            USERS.clear()
+            USERS.update(data.get("users", {}))
+        async with SUBS_LOCK:
+            SUBS.clear()
+            SUBS.update(data.get("subs", {}))
+        async with SETTINGS_LOCK:
+            SETTINGS.clear()
+            SETTINGS.update(data.get("settings", {}))
+        async with GROUPS_LOCK:
+            GROUPS.clear()
+            GROUPS.update(data.get("groups", {}))
+        async with INBOUNDS_LOCK:
+            INBOUNDS.clear()
+            INBOUNDS.update(data.get("inbounds", {}))
+
+        IP_POOL.clear()
+        IP_POOL.extend(data.get("ip_pool", []))
+        IP_BLACKLIST.clear()
+        IP_BLACKLIST.update(data.get("ip_blacklist", []))
+
+        async with WORKER_LOCK:
+            WORKER.clear()
+            WORKER.update(data.get("worker", {}))
+
+        AUTH["password_hash"] = data.get("password_hash", "")
+        CONFIG["secret"] = data.get("saved_secret", CONFIG["secret"])
+
+        # Rebuild indexes
+        _rebuild_path_index()
+        _migrate_user_links()
+        _migrate_user_uuids()
+        _rebuild_path_index()
+
+        asyncio.create_task(save_state())
+        log_activity("settings", "بکاپ بازیابی شد — تمام داده‌ها جایگزین شدند", "warn")
+
+        return {"ok": True, "detail": "بکاپ با موفقیت بازیابی شد. پنل را ریفرش کنید."}
+
+    except HTTPException:
+        raise
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="فایل JSON معتبر نیست")
+    except Exception as e:
+        logger.error(f"Restore failed: {e}")
+        raise HTTPException(status_code=500, detail=f"خطا در بازیابی: {str(e)}")
+
+# ── Self-update (Railway: refresh the deployed repo from GitHub) ─────────────
+# Railway builds a Docker image from the repo at deploy time; the running
+# container has no git history, so "Update" re-clones the upstream repo over
+# /app. The new code goes live when the container restarts/redeploys.
+PANEL_REPO_URL = "https://github.com/amirh00sain/SpiderPanel"
+APP_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
+UPDATE_STATE: dict = {"running": False, "log": [], "done": False, "ok": None}
+UPDATE_LOCK = asyncio.Lock()
+
+
+def _update_log(msg: str):
+    UPDATE_STATE["log"].append(str(msg)[:300])
+    if len(UPDATE_STATE["log"]) > 200:
+        del UPDATE_STATE["log"][:-200]
+    logger.info(f"[self-update] {msg}")
+
+
+async def _run_self_update():
+    """Re-clone the upstream repo into /app (git-safe), preserving local data.
+
+    Runs blocking subprocess/shutil work in executor threads. Panel state
+    (users, settings, worker) lives in DATA_DIR and is NOT touched.
+    """
+    import shutil as _shutil
+    import subprocess as _subprocess
+    try:
+        _update_log("شروع بروزرسانی از GitHub...")
+        backup = Path("/tmp/spider_app_backup")
+        if backup.exists():
+            _shutil.rmtree(backup, ignore_errors=True)
+        # Backup things we can't re-download (scanned results, xray binary).
+        keep_dirs = []
+        for name in ("data/scanned", "bin"):
+            src = APP_DIR / name
+            if src.exists():
+                dst = backup / name
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                if src.is_dir():
+                    _shutil.copytree(src, dst, dirs_exist_ok=True)
+                else:
+                    _shutil.copy2(src, dst)
+                keep_dirs.append(name)
+        if keep_dirs:
+            _update_log(f"بکاپ گرفته شد: {', '.join(keep_dirs)}")
+
+        tmp_clone = Path("/tmp/spider_repo_new")
+        if tmp_clone.exists():
+            _shutil.rmtree(tmp_clone, ignore_errors=True)
+
+        def _run(cmd):
+            proc = _subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+            return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
+
+        loop = asyncio.get_running_loop()
+        code, out = await loop.run_in_executor(
+            None, _run, ["git", "clone", "--depth", "1", PANEL_REPO_URL, str(tmp_clone)])
+        if code != 0:
+            raise RuntimeError(f"git clone failed: {out.strip()[:200]}")
+        _update_log(f"ریپو کلون شد ({PANEL_REPO_URL})")
+
+        def _copy_tree():
+            for item in tmp_clone.iterdir():
+                if item.name == ".git":
+                    continue
+                dst = APP_DIR / item.name
+                try:
+                    if item.is_dir():
+                        if dst.exists():
+                            _shutil.rmtree(dst, ignore_errors=True)
+                        _shutil.copytree(item, dst)
+                    else:
+                        _shutil.copy2(item, dst)
+                except Exception as e:
+                    _update_log(f"خطا در کپی {item.name}: {e}")
+
+        await loop.run_in_executor(None, _copy_tree)
+        _update_log("فایل‌های جدید کپی شد")
+
+        def _restore():
+            for name in keep_dirs:
+                src = backup / name
+                dst = APP_DIR / name
+                if src.exists() and not dst.exists():
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    if src.is_dir():
+                        _shutil.copytree(src, dst)
+                    else:
+                        _shutil.copy2(src, dst)
+
+        await loop.run_in_executor(None, _restore)
+        _shutil.rmtree(tmp_clone, ignore_errors=True)
+        _shutil.rmtree(backup, ignore_errors=True)
+
+        UPDATE_STATE["ok"] = True
+        UPDATE_STATE["done"] = True
+        _update_log("بروزرسانی کامل شد — برای اعمال شدن، پنل را ری‌استارت کنید (Railway Deploy)")
+        log_activity("settings", f"پنل از GitHub بروزرسانی شد ({PANEL_REPO_URL})", "ok")
+        return True
+    except Exception as e:
+        UPDATE_STATE["ok"] = False
+        UPDATE_STATE["done"] = True
+        _update_log(f"خطا: {e}")
+        log_activity("settings", f"بروزرسانی ناموفق: {e}", "err")
+        return False
+
+
+@app.post("/api/settings/update")
+async def settings_update(_=Depends(require_auth)):
+    """Start a self-update from GitHub (re-clone repo over /app)."""
+    async with UPDATE_LOCK:
+        if UPDATE_STATE.get("running"):
+            return JSONResponse(status_code=409, content={"ok": False, "detail": "بروزرسانی قبلاً در حال اجراست"})
+        UPDATE_STATE.update({"running": True, "log": [], "done": False, "ok": None})
+    asyncio.create_task(_run_self_update())
+    return {"ok": True, "detail": "بروزرسانی شروع شد"}
+
+
+@app.get("/api/settings/update/status")
+async def settings_update_status(_=Depends(require_auth)):
+    """Poll self-update progress (log lines + done flag)."""
+    return {
+        "ok": True,
+        "running": bool(UPDATE_STATE.get("running")),
+        "done": bool(UPDATE_STATE.get("done")),
+        "success": UPDATE_STATE.get("ok"),
+        "log": list(UPDATE_STATE.get("log") or []),
+    }
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -6075,6 +6430,11 @@ def _worker_public() -> dict:
         "sync_error": WORKER.get("sync_error", ""),
         "sync_count": int(WORKER.get("sync_count", 0)),
         "token_link": CF_TOKEN_LINK,
+        "tunnel_enabled": bool(WORKER.get("tunnel_enabled", False)),
+        "tunnel_kv_namespace_id": WORKER.get("tunnel_kv_namespace_id", ""),
+        "tunnel_kv_namespace_title": WORKER.get("tunnel_kv_namespace_title", ""),
+        "reverse_kv_namespace_id": WORKER.get("reverse_kv_namespace_id", ""),
+        "reverse_kv_namespace_title": WORKER.get("reverse_kv_namespace_title", ""),
         "proxies": [
             {"code": code, **dict(p)}
             for code, p in sorted((WORKER.get("proxies") or {}).items())
@@ -6123,6 +6483,85 @@ async def _ensure_worker_kv() -> str | None:
     return None
 
 
+async def _ensure_tunnel_kv() -> str | None:
+    """Find or create the TUNNEL's own KV namespace ({worker}-tunnel-db).
+
+    The tunnel keeps its state separate from the main worker KV. The name is
+    derived from the worker's KV title so the pairing is always obvious.
+    """
+    acct = str(WORKER.get("account_id") or "")
+    cf_token = str(WORKER.get("token") or "")
+    if not acct or not cf_token:
+        return None
+    existing = str(WORKER.get("tunnel_kv_namespace_id") or "")
+    if existing:
+        return existing
+    wname = str(WORKER.get("worker_name") or "").strip()
+    base = f"{wname}-db" if wname else "spider-worker-kv"
+    kv_title = f"{base}-tunnel"  # e.g. spider-a1b2c3-db-tunnel
+    code, data = await _cf_api("GET", f"/accounts/{acct}/storage/kv/namespaces", cf_token, email="")
+    if code == 200:
+        for ns in (data.get("result") or []):
+            if ns.get("title") == kv_title:
+                async with WORKER_LOCK:
+                    WORKER["tunnel_kv_namespace_id"] = ns.get("id")
+                    WORKER["tunnel_kv_namespace_title"] = kv_title
+                asyncio.create_task(save_state())
+                return ns.get("id")
+    code, data = await _cf_api(
+        "POST", f"/accounts/{acct}/storage/kv/namespaces",
+        cf_token, {"title": kv_title}, email="",
+    )
+    if code == 200 and data.get("result"):
+        nid = data["result"].get("id")
+        async with WORKER_LOCK:
+            WORKER["tunnel_kv_namespace_id"] = nid
+            WORKER["tunnel_kv_namespace_title"] = kv_title
+        asyncio.create_task(save_state())
+        return nid
+    return None
+
+
+async def _ensure_reverse_kv() -> str | None:
+    """Find or create the REVERSE's own KV namespace ({worker}-db-reverse).
+
+    Reverse mode: user → Worker → Railway → site. Its state (users, usage)
+    lives in a third dedicated namespace so tunnel/reverse/worker never share
+    keys and can never interfere with each other.
+    """
+    acct = str(WORKER.get("account_id") or "")
+    cf_token = str(WORKER.get("token") or "")
+    if not acct or not cf_token:
+        return None
+    existing = str(WORKER.get("reverse_kv_namespace_id") or "")
+    if existing:
+        return existing
+    wname = str(WORKER.get("worker_name") or "").strip()
+    base = f"{wname}-db" if wname else "spider-worker-kv"
+    kv_title = f"{base}-reverse"  # e.g. spider-a1b2c3-db-reverse
+    code, data = await _cf_api("GET", f"/accounts/{acct}/storage/kv/namespaces", cf_token, email="")
+    if code == 200:
+        for ns in (data.get("result") or []):
+            if ns.get("title") == kv_title:
+                async with WORKER_LOCK:
+                    WORKER["reverse_kv_namespace_id"] = ns.get("id")
+                    WORKER["reverse_kv_namespace_title"] = kv_title
+                asyncio.create_task(save_state())
+                return ns.get("id")
+    code, data = await _cf_api(
+        "POST", f"/accounts/{acct}/storage/kv/namespaces",
+        cf_token, {"title": kv_title}, email="",
+    )
+    if code == 200 and data.get("result"):
+        nid = data["result"].get("id")
+        async with WORKER_LOCK:
+            WORKER["reverse_kv_namespace_id"] = nid
+            WORKER["reverse_kv_namespace_title"] = kv_title
+        asyncio.create_task(save_state())
+        return nid
+    return None
+
+
 async def _worker_deploy() -> tuple:
     """Deploy (or re-deploy) the VLESS worker script.
 
@@ -6156,6 +6595,8 @@ async def _worker_deploy() -> tuple:
     if not cf_token:
         return 0, {"errors": [{"message": "Cloudflare API token is missing (worker not connected properly)"}]}
     kv_id = await _ensure_worker_kv()
+    tunnel_kv_id = await _ensure_tunnel_kv() if WORKER.get("tunnel_enabled") else None
+    reverse_kv_id = await _ensure_reverse_kv() if WORKER.get("tunnel_enabled") else None
     email = ""
     # Use Global API Key auth (X-Auth-Email + X-Auth-Key) when the token is a
     # real GAK (cfk_/cf_ prefix or 37-char hex); otherwise a Bearer token always
@@ -6169,15 +6610,20 @@ async def _worker_deploy() -> tuple:
         # ESM module worker: multipart upload using the `files` form field so
         # Cloudflare parses it as a module-syntax worker (Content-Type must be
         # application/javascript+module), with main_module metadata and the KV
-        # namespace binding (SPIDER_KV). The template uses the global connect()
+        # namespace bindings (SPIDER_KV for users/routes, TUNNEL_KV +
+        # REVERSE_KV when the tunnel/reverse is enabled — three fully separate
+        # namespaces). The template uses the global connect()
         # Socket API for outbound TCP, so no fetcher binding is needed.
         wname = WORKER.get("worker_name", "") or ""
+        bindings = [{"name": "SPIDER_KV", "namespace_id": kv_id, "type": "kv_namespace"}]
+        if tunnel_kv_id:
+            bindings.append({"name": "TUNNEL_KV", "namespace_id": tunnel_kv_id, "type": "kv_namespace"})
+        if reverse_kv_id:
+            bindings.append({"name": "REVERSE_KV", "namespace_id": reverse_kv_id, "type": "kv_namespace"})
         meta = json.dumps({
             "main_module": "worker.js",
             "compatibility_date": "2025-01-01",
-            "bindings": [
-                {"name": "SPIDER_KV", "namespace_id": kv_id, "type": "kv_namespace"},
-            ],
+            "bindings": bindings,
         })
         boundary = "----SpiderPanel" + secrets.token_hex(8)
         body = (
@@ -6224,19 +6670,18 @@ async def _worker_sync_users() -> dict:
     ctrl = str(WORKER.get("control_token") or "")
     if not domain or not ctrl or domain in ("localhost", "0.0.0.0", "127.0.0.1"):
         return {"ok": False, "detail": "worker not connected / no control token"}
-    # Only users that reference the worker inbound are synced.
-    wid = None
-    for iid, ib in INBOUNDS.items():
-        if (ib.get("protocol") or "").lower() == "worker":
-            wid = iid
-            break
-    if not wid:
+    # Only users that reference the worker or tunnel inbound are synced — both
+    # terminate on the Worker (worker: /route/{code}, tunnel/reverse: the
+    # Railway hop authenticates via /tunnel/{uuid} against the same KV).
+    sync_inbounds = {iid for iid, ib in INBOUNDS.items()
+                     if ((ib or {}).get("protocol") or "").lower() in ("worker", "tunnel")}
+    if not sync_inbounds:
         return {"ok": False, "detail": "no worker inbound"}
     synced = 0
     async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
         for uid, u in USERS.items():
             iids = u.get("inbound_ids") or ([u.get("inbound_id")] if u.get("inbound_id") else [])
-            if wid not in iids:
+            if not (set(iids) & sync_inbounds):
                 continue
             cuuid = u.get("config_uuid") or uid
             deadline = 0
@@ -6329,9 +6774,11 @@ async def _worker_pull_all_users() -> int:
 
 
 def _user_uses_worker_inbound(u: dict) -> bool:
-    """True if the user references the worker inbound (needs quota/expiry sync)."""
+    """True if the user references an inbound served by the Cloudflare Worker
+    (worker routes, tunnel/reverse chains) — those users need quota/expiry
+    synced to the worker KV."""
     iids = u.get("inbound_ids") or ([u.get("inbound_id")] if u.get("inbound_id") else [])
-    return any((INBOUNDS.get(iid) or {}).get("protocol") == "worker" for iid in iids)
+    return any((INBOUNDS.get(iid) or {}).get("protocol") in ("worker", "tunnel") for iid in iids)
 
 
 async def _ensure_worker_inbound() -> bool:
@@ -6388,13 +6835,13 @@ async def _worker_push_config() -> dict:
     ctrl = str(WORKER.get("control_token") or "")
     if not domain or not ctrl or domain in ("localhost", "0.0.0.0", "127.0.0.1"):
         return {"ok": False, "detail": "worker not connected / no control token"}
-    wid = next((iid for iid, ib in INBOUNDS.items()
-                if ((ib or {}).get("protocol") or "").lower() == "worker"), None)
+    sync_inbounds = {iid for iid, ib in INBOUNDS.items()
+                     if ((ib or {}).get("protocol") or "").lower() in ("worker", "tunnel")}
     users = []
     async with USERS_LOCK:
         for uid, u in USERS.items():
             iids = u.get("inbound_ids") or ([u.get("inbound_id")] if u.get("inbound_id") else [])
-            if wid and wid not in iids:
+            if not (set(iids) & sync_inbounds):
                 continue
             cuuid = u.get("config_uuid") or uid
             deadline = 0
@@ -6961,6 +7408,179 @@ async def worker_inbounds(_=Depends(require_auth)):
                     ]
                 })
     return {"ok": True, "inbounds": worker_inbounds}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TUNNEL — user → Railway → Cloudflare Worker → site
+# The tunnel inbound is a TLS+WS inbound on the RAILWAY domain with path
+# /tunnel/{uuid}. Railway forwards to the Worker; the Worker connects out to
+# the destination. The tunnel has its own dedicated KV namespace (TUNNEL_KV).
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _tunnel_log(msg: str):
+    WORKER.setdefault("tunnel_logs", []).append(
+        {"msg": str(msg)[:250], "time": now_ir().isoformat(timespec="seconds")})
+    if len(WORKER["tunnel_logs"]) > 100:
+        del WORKER["tunnel_logs"][:-100]
+
+
+@app.post("/api/tunnel/create")
+async def tunnel_create(_=Depends(require_auth)):
+    """Create the Tunnel inbound + its dedicated KV namespace.
+
+    Steps:
+      1. ensure the TUNNEL_KV namespace exists ({worker}-db-tunnel),
+      2. mark tunnel_enabled → next deploy binds TUNNEL_KV and re-deploys,
+      3. create/refresh the 'default-tunnel' inbound: TLS + WS on the Railway
+         panel domain with ws path /tunnel/{uuid}.
+    """
+    if not WORKER.get("connected"):
+        raise HTTPException(status_code=400, detail="worker is not connected")
+    kv_id = await _ensure_tunnel_kv()
+    if not kv_id:
+        raise HTTPException(status_code=500, detail="could not create tunnel KV namespace")
+    async with WORKER_LOCK:
+        WORKER["tunnel_enabled"] = True
+        if not WORKER.get("tunnel_created_at"):
+            WORKER["tunnel_created_at"] = now_ir().isoformat(timespec="seconds")
+        _tunnel_log(f"Tunnel KV ساخته شد: {WORKER.get('tunnel_kv_namespace_title')}")
+    # Re-deploy so the TUNNEL_KV binding goes live.
+    sc, sd = await _worker_deploy()
+    ok_deploy = sc in (200, 201, 409)
+    async with WORKER_LOCK:
+        _tunnel_log("Worker با binding جدید deploy شد" if ok_deploy else f"deploy ناموفق: {sc}")
+    panel_domain = _safe_host(SETTINGS.get("domain"), get_host())
+    async with INBOUNDS_LOCK:
+        INBOUNDS["default-tunnel"] = {
+            "name": "Tunnel (Railway → CF Worker)",
+            "protocol": "tunnel",
+            "port": 443,
+            "network": "ws",
+            "security": "tls",
+            "domain": panel_domain,
+            "external_domain": panel_domain,
+            "sni": "",
+            "spoof_ip": "",
+            "external_port": 443,
+            "fingerprint": "chrome",
+            "reality_settings": {},
+            "xhttp_settings": {},
+            "ws_settings": {"path": "/tunnel/{uuid}"},
+            "grpc_settings": {},
+            "worker_domain": str(WORKER.get("worker_domain") or ""),
+            "created_at": datetime.now().isoformat(),
+        }
+        changed = True
+    asyncio.create_task(save_state())
+    async with WORKER_LOCK:
+        _tunnel_log(f"اینباند Tunnel روی {panel_domain} با مسیر /tunnel/{{uuid}} ساخته شد")
+    log_activity("tunnel", "اینباند Tunnel ایجاد شد", "ok")
+    asyncio.create_task(save_state())
+    return {"ok": True, **_worker_public(), "deployed": ok_deploy}
+
+
+@app.get("/api/tunnel/status")
+async def tunnel_status(_=Depends(require_auth)):
+    """Tunnel tab data: ping server→worker, details, logs."""
+    wdom = str(WORKER.get("worker_domain") or "").strip().lower()
+    ping_ms = None
+    if wdom:
+        t0 = time.time()
+        try:
+            async with httpx.AsyncClient(timeout=8) as client:
+                r = await client.get(f"https://{wdom}/")
+            if r.status_code < 500:
+                ping_ms = round((time.time() - t0) * 1000)
+        except Exception:
+            ping_ms = None
+    tid = next((iid for iid, ib in INBOUNDS.items()
+                if ((ib or {}).get("protocol") or "").lower() == "tunnel"), None)
+    # Reverse info (shown under the tunnel info in the Tunnel tab).
+    rev_ping_ms = None
+    if wdom:
+        t0 = time.time()
+        try:
+            async with httpx.AsyncClient(timeout=8) as client:
+                r2 = await client.get(f"https://{wdom}/health")
+            if r2.status_code < 500:
+                rev_ping_ms = round((time.time() - t0) * 1000)
+        except Exception:
+            rev_ping_ms = None
+    return {
+        "ok": True,
+        "worker_connected": bool(WORKER.get("connected")),
+        "tunnel_enabled": bool(WORKER.get("tunnel_enabled")),
+        "inbound_exists": tid is not None,
+        "ping_ms": ping_ms,
+        "worker_url": WORKER.get("worker_url", ""),
+        "worker_domain": wdom,
+        "panel_domain": _safe_host(SETTINGS.get("domain"), get_host()),
+        "tunnel_kv_title": WORKER.get("tunnel_kv_namespace_title", ""),
+        "tunnel_kv_id": WORKER.get("tunnel_kv_namespace_id", ""),
+        "reverse_enabled": bool(tid and (INBOUNDS[tid] or {}).get("reverse_enabled")),
+        "reverse_ping_ms": rev_ping_ms,
+        "reverse_path": f"/reverse/{{uuid}}" if (tid and (INBOUNDS[tid] or {}).get("reverse_enabled")) else "",
+        "reverse_kv_title": WORKER.get("reverse_kv_namespace_title", ""),
+        "reverse_kv_id": WORKER.get("reverse_kv_namespace_id", ""),
+        "last_heartbeat": WORKER.get("last_heartbeat", ""),
+        "remote_status": WORKER.get("remote_status", ""),
+        "logs": list(WORKER.get("tunnel_logs") or [])[-30:],
+    }
+
+
+@app.post("/api/tunnel/reverse")
+async def tunnel_reverse_toggle(request: Request, _=Depends(require_auth)):
+    """Toggle reverse mode on the tunnel inbound.
+
+    ON:  user → Worker → Railway → site; config domain = worker domain,
+         ws path /reverse/{uuid}; user records live in REVERSE_KV.
+    OFF: back to the plain tunnel chain (user → Railway → Worker → site).
+    """
+    body = await request.json()
+    enabled = bool(body.get("enabled"))
+    if not WORKER.get("connected"):
+        raise HTTPException(status_code=400, detail="worker is not connected")
+    async with INBOUNDS_LOCK:
+        tid = next((iid for iid, ib in INBOUNDS.items()
+                    if ((ib or {}).get("protocol") or "").lower() == "tunnel"), None)
+    if not tid and enabled:
+        # Reverse needs the tunnel inbound (its WS handler serves /reverse on
+        # the Railway leg). Create it instead of failing — the user just
+        # flipped the switch expecting it to work.
+        create_res = await tunnel_create(_=None)
+        async with INBOUNDS_LOCK:
+            tid = next((iid for iid, ib in INBOUNDS.items()
+                        if ((ib or {}).get("protocol") or "").lower() == "tunnel"), None)
+        if not tid:
+            raise HTTPException(status_code=500, detail="could not create tunnel inbound")
+        async with WORKER_LOCK:
+            _tunnel_log("اینباند Tunnel به‌صورت خودکار برای Reverse ساخته شد")
+    async with INBOUNDS_LOCK:
+        INBOUNDS[tid]["reverse_enabled"] = enabled
+    if enabled:
+        # tunnel_enabled gates the TUNNEL_KV + REVERSE_KV bindings at deploy.
+        async with WORKER_LOCK:
+            WORKER["tunnel_enabled"] = True
+        kv_ok = await _ensure_reverse_kv()
+        if not kv_ok:
+            raise HTTPException(status_code=500, detail="could not create reverse KV namespace")
+        async with WORKER_LOCK:
+            _tunnel_log(f"Reverse KV آماده شد: {WORKER.get('reverse_kv_namespace_title')}")
+    # Re-deploy so the REVERSE_KV binding goes live when first needed.
+    sc, sd = await _worker_deploy()
+    ok_deploy = sc in (200, 201, 409)
+    if enabled and ok_deploy:
+        asyncio.create_task(_worker_sync_users())
+    wdom = str(WORKER.get("worker_domain") or "")
+    async with WORKER_LOCK:
+        if enabled:
+            _tunnel_log(f"Reverse فعال شد — دامنه {wdom} با مسیر /reverse/{{uuid}}")
+            _tunnel_log("Worker با REVERSE_KV deploy شد" if ok_deploy else f"deploy ناموفق: {sc}")
+        else:
+            _tunnel_log("Reverse غیرفعال شد")
+    log_activity("tunnel", f"Reverse {'فعال' if enabled else 'غیرفعال'} شد", "ok")
+    asyncio.create_task(save_state())
+    return {"ok": True, "enabled": enabled, **_worker_public(), "deployed": ok_deploy}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
