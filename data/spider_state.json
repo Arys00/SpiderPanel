@@ -43,6 +43,22 @@
       "xhttp_settings": {},
       "path": "xhttp-siz10/stream-up/e27ca920-3f29-496e-ad85-9b45e0ebd2bf",
       "user_id": "bda643d73834"
+    },
+    "11b61b22-532e-49fc-994c-d088fbff2b7d": {
+      "label": "scan-test",
+      "limit_bytes": 0,
+      "used_bytes": 0,
+      "created_at": "2026-08-24T04:33:20.356309",
+      "active": true,
+      "expires_at": "2026-09-23T04:33:20.356262",
+      "note": "لینک کاربر scan-test",
+      "is_default": false,
+      "sub_id": null,
+      "protocol": "vless-ws",
+      "transport_type": "ws",
+      "xhttp_settings": {},
+      "path": "ws/11b61b22-532e-49fc-994c-d088fbff2b7d",
+      "user_id": "86698c60cc4d"
     }
   },
   "users": {
@@ -111,6 +127,39 @@
       "path": "/xhttp-siz10/stream-up/e27ca920-3f29-496e-ad85-9b45e0ebd2bf",
       "transport_type": "reality",
       "telegram_secret": ""
+    },
+    "86698c60cc4d": {
+      "username": "scan-test",
+      "password_hash": "83401bddbc040d8e73ec32d821661885fc761de9be9c3dbfe4108114b7dc739d",
+      "protocol": "vless",
+      "traffic_limit_bytes": 0,
+      "traffic_used_bytes": 0,
+      "expire_at": "2026-09-23T04:33:20.356262",
+      "concurrent_connections": 3,
+      "created_at": "2026-08-24T04:33:20.356300",
+      "status": "active",
+      "server": "IR-Tehran-01",
+      "config_uuid": "11b61b22-532e-49fc-994c-d088fbff2b7d",
+      "subscription_uuid": "EoJLNmp1VKmPpq0qWgMawg",
+      "sni": "",
+      "proxy_ip": "",
+      "proxy_country": "",
+      "proxy_ips": [],
+      "proxy_countries": [],
+      "proxy_ip_enabled": false,
+      "custom_ip_type": "",
+      "custom_ip_inbounds": {
+        "cf": [],
+        "railway": []
+      },
+      "sni_spoof_v2box": false,
+      "inbound_id": "default",
+      "inbound_ids": [
+        "default"
+      ],
+      "path": "/ws/11b61b22-532e-49fc-994c-d088fbff2b7d",
+      "transport_type": "ws",
+      "telegram_secret": ""
     }
   },
   "subs": {},
@@ -124,7 +173,7 @@
     "auto_ip_rotation": false,
     "security_token": "jfE_q8ca761HtI1hG8sD1Q",
     "api_key": "spk_xO7BPzbFTmcOs78uw7d9uge5UV_D-RkM",
-    "server_ip": "152.55.185.148",
+    "server_ip": "208.77.244.89",
     "server_country": "The Netherlands",
     "server_country_code": "NL",
     "docker_dns": "8.8.8.8,8.8.4.4",
@@ -180,15 +229,15 @@
       "security": "reality",
       "domain": "",
       "external_domain": "spider-panel.up.railway.app",
-      "sni": "is1-ssl.mzstatic.com",
+      "sni": "www.google.com",
       "external_port": 443,
       "fingerprint": "chrome",
       "reality_settings": {
-        "target": "www.microsoft.com:443",
-        "sni": "is1-ssl.mzstatic.com",
-        "dest": "www.microsoft.com:443",
+        "target": "www.google.com:443",
+        "sni": "www.google.com",
+        "dest": "www.google.com:443",
         "server_names": [
-          "is1-ssl.mzstatic.com"
+          "www.google.com"
         ],
         "private_key": "GI3Ta_1dHBuTg_EKzOk8sAofJrHftixiUmgLsvHHhEM",
         "public_key": "bZwhqUwFNqkzVwsDFsE6PVXirPhMfRJcikP3TZ_SaCM",
@@ -244,6 +293,49 @@
       "worker_domain": "spider-27a71a.qabilsaibery.workers.dev",
       "created_at": "2026-08-23T18:26:39.098280",
       "reverse_enabled": true
+    },
+    "29a1824292a9": {
+      "name": "TG-Test",
+      "protocol": "telegram",
+      "port": 44344,
+      "network": "ws",
+      "security": "tls",
+      "domain": "localhost",
+      "external_domain": "test.com",
+      "spoof_ip": "",
+      "external_port": 443,
+      "fingerprint": "chrome",
+      "reality_settings": {},
+      "xhttp_settings": {},
+      "ws_settings": {},
+      "grpc_settings": {},
+      "wireguard_settings": {},
+      "telegram_settings": {
+        "internal_port": 44344,
+        "external_port": 443,
+        "external_domain": "test.com"
+      },
+      "created_at": "2026-08-24T04:32:54.794543"
+    },
+    "f8f8fe225c8c": {
+      "name": "Node: spiderpanel-production-f45d.up.railway.app",
+      "protocol": "node",
+      "port": 8080,
+      "network": "ws",
+      "security": "tls",
+      "domain": "spiderpanel-production-f45d.up.railway.app",
+      "external_domain": "spiderpanel-production-f45d.up.railway.app",
+      "sni": "spiderpanel-production-f45d.up.railway.app",
+      "external_port": "443",
+      "fingerprint": "chrome",
+      "reality_settings": {},
+      "xhttp_settings": {},
+      "ws_settings": {
+        "path": "/ws/{uuid}"
+      },
+      "grpc_settings": {},
+      "created_at": "2026-08-24T05:03:24.857573",
+      "node_target_id": "eabbfa72"
     }
   },
   "ip_pool": [],
@@ -260,7 +352,7 @@
     "kv_namespace_id": "eefab90254fe491da1e71c4e45c83a98",
     "kv_namespace_title": "spider-27a71a-db",
     "remote_status": "online",
-    "last_heartbeat": "2026-08-24T03:43:37+03:30",
+    "last_heartbeat": "2026-08-24T05:12:41+03:30",
     "worker_users_online": 0,
     "worker_traffic_bytes": 0,
     "worker_user_count": 0,
@@ -852,7 +944,7 @@
     "source_url": "https://raw.githubusercontent.com/NiREvil/vless/main/sub/ProxyIP-Daily.md",
     "auto_sync": true,
     "sync_error": "Authentication error",
-    "sync_count": 251,
+    "sync_count": 390,
     "tunnel_kv_namespace_id": "f1e6c98da53e4e80ad9907aef5931bef",
     "tunnel_kv_namespace_title": "spider-27a71a-db-tunnel",
     "tunnel_enabled": true,
@@ -892,5 +984,21 @@
   },
   "password_hash": "fcb3149c23e642e467520646d99c50a045d0a5908fda6468b74fab1e851a08fa",
   "saved_secret": "spider-panel-secret-key-v2",
-  "saved_at": "2026-08-24T03:44:55.385798"
+  "saved_at": "2026-08-24T05:12:41.525738",
+  "nodes": {
+    "eabbfa72": {
+      "id": "eabbfa72",
+      "url": "https://spiderpanel-production-f45d.up.railway.app",
+      "key": "spk_8b0ho-A4UWuYYoGpmU2Dp-do9P14Z832",
+      "name": "spiderpanel-production-f45d.up.railway.app",
+      "added_at": "2026-08-24T05:03:24+03:30"
+    },
+    "105e86e6": {
+      "id": "105e86e6",
+      "url": "https://spider-9qpg-production.up.railway.app",
+      "key": "spk_TbXbbGwwvvnW4LKN0d8UZOltcRCtCNae",
+      "name": "spider-9qpg-production.up.railway.app",
+      "added_at": "2026-08-24T05:05:40+03:30"
+    }
+  }
 }

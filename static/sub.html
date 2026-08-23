@@ -1650,10 +1650,15 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script>
 (function(){
   "use strict";
-  // Live data pulled from the panel API (/api/sub/{username}). No hardcoded
-  // defaults — everything on this page is rendered from the real user record.
-  var uname = window.location.pathname.split('/').filter(Boolean).pop();
-  var apiUrl = '/api/sub/' + encodeURIComponent(uname);
+  // Live data pulled from the panel API. Two entry paths:
+  //   /sub/{username}  → admin preview (authed) → /api/sub/{username}
+  //   /subs/{uuid}     → graphical public page → /api/public/sub-uuid/{uuid}
+  var pathParts = window.location.pathname.split('/').filter(Boolean);
+  var isUuidPath = pathParts[0] === 'subs';
+  var uname = pathParts.pop();
+  var apiUrl = isUuidPath
+    ? '/api/public/sub-uuid/' + encodeURIComponent(uname)
+    : '/api/sub/' + encodeURIComponent(uname);
   var CONFIG_LINKS = [];
   var CONFIG_NAMES = [];
   var CONFIG_PROTOS = [];

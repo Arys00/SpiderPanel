@@ -1627,7 +1627,8 @@ tr{animation:fadeIn .3s ease}
           </div>
           <div class="px-hint" data-i18n="nodeHint">هر نود یک پنل دیگر است که با API Key خودش متصل می‌شود. حداکثر ۱۰ نود. کاربران اینباند Node روی همه نودها ساخته می‌شوند.</div>
           <div style="display:flex;gap:8px;margin-top:10px">
-            <input type="text" id="nd-api-key" dir="ltr" placeholder="https://other-panel.up.railway.app|API-KEY  (یا فقط API Key)" style="flex:1">
+            <input type="text" id="nd-domain" dir="ltr" placeholder="other-panel.up.railway.app" style="flex:2">
+            <input type="text" id="nd-api-key" dir="ltr" placeholder="API KEY" style="flex:2">
             <button class="btn btn-p" onclick="nodeAdd()" id="nd-add-btn"><span data-i18n="addNode">Add Node</span></button>
           </div>
           <div id="nd-list" class="nd-list" style="margin-top:14px"></div>
@@ -4835,14 +4836,17 @@ async function loadNodes() {
   } catch(e) {}
 }
 async function nodeAdd() {
-  var inp = $id('nd-api-key');
-  var v = (inp.value || '').trim();
-  if (!v) { toast(t('workerFillAll'), 'warn'); return; }
+  var domInp = $id('nd-domain');
+  var keyInp = $id('nd-api-key');
+  var domain = (domInp.value || '').trim().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  var key = (keyInp.value || '').trim();
+  if (!domain || !key) { toast('دامنه پنل و API Key هر دو الزامی هستند', 'warn'); return; }
   var btn = $id('nd-add-btn');
   btn.disabled = true;
   try {
-    await api('/api/nodes/add', {method:'POST', body:{target: v}});
-    inp.value = '';
+    await api('/api/nodes/add', {method:'POST', body:{domain: domain, api_key: key}});
+    domInp.value = '';
+    keyInp.value = '';
     toast(t('sourceUpdated'), 'ok');
   } catch(e) { toast(e.message || t('toast.err'), 'err'); }
   btn.disabled = false;

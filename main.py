@@ -155,7 +155,7 @@ def _save_scanned_ips(ctype: str, entries: list, replace: bool = False) -> list:
     return merged
 
 async def load_state():
-    global LINKS, AUTH, SUBS, USERS, SETTINGS, GROUPS, IP_POOL, IP_BLACKLIST, INBOUNDS
+    global LINKS, AUTH, SUBS, USERS, SETTINGS, GROUPS, IP_POOL, IP_BLACKLIST, INBOUNDS, NODES
     try:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         if DATA_FILE.exists():
@@ -185,7 +185,9 @@ async def load_state():
                 WORKER.update(data["worker"])
                 if was_connected:
                     WORKER["connected"] = True
-            logger.info(f"State loaded: {len(LINKS)} links, {len(SUBS)} subs, {len(USERS)} users, {len(GROUPS)} groups, {len(IP_POOL)} ips, {len(INBOUNDS)} inbounds")
+            if isinstance(data.get("nodes"), dict):
+                NODES.update(data["nodes"])
+            logger.info(f"State loaded: {len(LINKS)} links, {len(SUBS)} subs, {len(USERS)} users, {len(GROUPS)} groups, {len(IP_POOL)} ips, {len(INBOUNDS)} inbounds, {len(NODES)} nodes")
     except Exception as e:
         logger.warning(f"Could not load state: {e}")
     # Rebuild path index from all users and links
@@ -311,6 +313,7 @@ async def save_state():
                 "password_hash": AUTH["password_hash"],
                 "saved_secret": CONFIG["secret"],
                 "saved_at": datetime.now().isoformat(),
+                "nodes": dict(NODES),
             }
             tmp = DATA_FILE.with_suffix(".tmp")
             async with aiofiles.open(tmp, "w", encoding="utf-8") as f:
@@ -1058,9 +1061,12 @@ def generate_telegram_proxy_link(user_id: str, user: dict, inbound: dict, remark
     # Use stored secret or derive a stable one
     secret = user.get("telegram_secret") or derive_secret_from_uuid(config_uuid)
 
-    # Note: Telegram t.me/proxy links don't support #remark fragment like VLESS links
-    # The name is set by the user in the Telegram app after adding the proxy
-    link = f"https://t.me/proxy?server={external_domain}&port={external_port}&secret={secret}"
+    # Optional promotion channel link appended to the proxy link (shown by TG)
+    promotion = str(tg.get("promotion") or inbound.get("promotion") or "").strip()
+    if promotion:
+        link = f"https://t.me/proxy?server={external_domain}&port={external_port}&secret={secret}&{promotion.lstrip('?&')}"
+    else:
+        link = f"https://t.me/proxy?server={external_domain}&port={external_port}&secret={secret}"
     return link
 
 
@@ -1854,6 +1860,41 @@ def generate_user_config(user_id: str, user: dict, inbound_id: str = None, addr:
     # address/host/sni always = the panel main domain; port 443 (Railway TLS).
     panel_domain = _safe_host(SETTINGS.get("domain"), get_host())
 
+    # Node inbounds: addressed to the remote node's panel domain with this
+    # server's country flag in the remark (spider-{flag}-{name}).
+    if proto == "node":
+        node_tid = inbound.get("node_target_id") if inbound else None
+        node_flag = ""
+        if node_tid and node_tid in NODES:
+            node_info = NODES[node_tid]
+            ncode = str(node_info.get("country_code") or "").upper()
+            node_flag = _COUNTRY_FLAG.get(ncode, "") if ncode else ""
+        ndom = str((inbound.get("domain") or "")).strip() or panel_domain
+        remark = quote(f"Spider-{node_flag} {username}".strip())
+        node_host = addr_ip or ndom
+        node_port = addr_port or "443"
+        transport = (user.get("transport_type") or "").lower() or (inbound.get("network") if inbound else "") or "ws"
+        if transport not in ("ws", "xhttp"):
+            transport = "ws"
+        if transport == "xhttp":
+            xs = inbound.get("xhttp_settings") if inbound else {}
+            xpb = xs.get("xPaddingBytes", "100-1000")
+            xmod = str(xs.get("mode", "auto")).strip().lower()
+            if xmod not in ("packet-up", "stream-up"):
+                xmod = "stream-up"
+            xsc = xs.get("scMaxEachPostBytes", "1000000")
+            extra = quote('{{"xPaddingBytes":"{}","mode":"{}","scMaxEachPostBytes":"{}"}}'.format(xpb, xmod, xsc), safe='')
+            xpath = f"/xhttp-siz10/{xmod}/{config_uuid}"
+            params = (f"encryption=none&security=tls&type=xhttp"
+                      f"&host={quote(node_host)}&path={quote(xpath, safe='')}&sni={quote(node_host)}"
+                      f"&fp=chrome&alpn=h2,http/1.1&mode={xmod}&extra={extra}")
+        else:
+            ws_path = f"/ws/{config_uuid}"
+            params = (f"encryption=none&security=tls&type=ws"
+                      f"&host={quote(node_host)}&path={quote(ws_path, safe='')}&sni={quote(node_host)}"
+                      f"&fp=chrome&alpn=http/1.1")
+        return f"vless://{config_uuid}@{node_host}:{node_port}?{params}#{remark}"
+
     # ── TUNNEL (user → Railway → CF Worker → site) — path /tunnel/{uuid} ──
     if proto == "tunnel":
         wdom = _worker_safe_domain(WORKER.get("worker_domain"))
@@ -2384,34 +2425,26 @@ async def subscription_handler(identifier: str, request: Request):
 
 @app.get("/subs/{uuid_key}")
 async def sub_categorized(uuid_key: str, request: Request):
-    """New /subs/{uuid} endpoint — returns categorized configs (tunnel section + node section).
+    """Graphical subscription page — serves sub.html for a valid UUID.
 
-    The sub page JSON endpoint: returns all configs grouped by category for the
-    client-side sub.html to render (tunnel/reverse/worker configs vs node configs).
+    The page itself fetches its data from /api/public/sub/{uuid}.
+    Text (base64) subscriptions remain at /sub/{uuid}.
     """
-    import base64
-    # Find the user by config_uuid
+    # Validate the UUID belongs to a user or an active link; otherwise 404.
+    found = False
     async with USERS_LOCK:
-        target_user = None
-        target_uid = None
-        for uid, u in USERS.items():
+        for u in USERS.values():
             if u.get("config_uuid") == uuid_key:
-                target_user = u
-                target_uid = uid
+                found = True
                 break
-    if not target_user:
+    if not found:
         async with LINKS_LOCK:
             link = LINKS.get(uuid_key)
         if link and is_link_allowed(link):
-            host = SETTINGS.get("domain") or get_host()
-            vless = generate_vless_link(uuid_key, host, remark=f"Spider-{link['label']}",
-                                        protocol=link.get("protocol", DEFAULT_PROTOCOL))
-            content = base64.b64encode(vless.encode()).decode()
-            return Response(content=content, media_type="text/plain",
-                            headers={"profile-title": quote(link["label"]),
-                                      "profile-update-interval": "12",
-                                      "support-url": "https://t.me/spider_vpn1"})
+            found = True
+    if not found:
         raise HTTPException(status_code=404, detail="not found")
+    return FileResponse(_os.path.join(_STATIC_DIR, "sub.html"))
 
     if _user_uses_worker_inbound(target_user):
         target_user = await _worker_pull_user(target_uid, target_user)
@@ -2484,22 +2517,74 @@ async def sub_categorized(uuid_key: str, request: Request):
 
 @app.get("/api/sub-self-config")
 async def sub_self_config(request: Request):
-    """Self-config scanner: detects this server's public IP and builds a 'yours' config.
-
-    If domain contains railway.app → scans Railway IPs, otherwise Cloudflare IPs.
-    Returns up to 2 TLS configs tagged as 'yours'.
+    """Self-config scanner: scans Railway IPs (if railway.app) or Cloudflare IPs,
+    tests up to 2 working IPs, returns 'yours' TLS configs with those IPs.
+    Only for TLS WS/XHTTP inbounds (not reality, xhttp, wireguard, telegram).
     """
+    import base64
     host = str(SETTINGS.get("domain") or request.headers.get("host") or "")
-    ip = str(SETTINGS.get("server_ip") or "")
-    code = str(SETTINGS.get("server_country_code") or "")
-    flag = _COUNTRY_FLAG.get(code.upper(), "🌐") if code else "🌐"
     is_railway = "railway.app" in host
     source = "Railway" if is_railway else "Cloudflare"
 
-    # Placeholder: real scanner needs async HTTP to provider APIs.
-    # For now return what we know — the client can do the deep scan.
-    return {"ok": True, "ip": ip, "country_code": code, "flag": flag,
-            "host": host, "source": source}
+    # Find the user from the request's sub URL (extract uuid from path)
+    # The request comes from sub.html page which calls this endpoint
+    # We need to find which user's sub page this is
+    async with USERS_LOCK:
+        target_user = None
+        target_uid = None
+        for uid, u in USERS.items():
+            if u.get("config_uuid") == request.query_params.get("uuid", ""):
+                target_user = u
+                target_uid = uid
+                break
+
+    if not target_user:
+        return {"ok": False, "detail": "user not found", "configs": []}
+
+    # Scan appropriate IPs
+    scanned_ips = []
+    if is_railway:
+        # Use saved Railway IPs (from scanner)
+        cf_ips = _read_scanned_ips("railway")
+        scanned_ips = cf_ips[:2]  # max 2
+    else:
+        # Use saved Cloudflare IPs
+        cf_ips = _read_scanned_ips("cf")
+        scanned_ips = cf_ips[:2]
+
+    if not scanned_ips:
+        return {"ok": False, "detail": "no scanned IPs available", "configs": []}
+
+    # Build configs for this user using scanned IPs
+    configs = []
+    inbound_ids = target_user.get("inbound_ids") or []
+    for iid_ in inbound_ids:
+        ib = INBOUNDS.get(iid_)
+        if not ib:
+            continue
+        _p = (ib.get("protocol") or "").lower()
+        _s = (ib.get("security") or "").lower()
+        # Only TLS WS/XHTTP inbounds
+        if _p in ("wireguard", "telegram") or _s == "reality" or _p == "reality":
+            continue
+        if _p == "worker":
+            continue
+        if _p not in ("vless",) and _s != "tls":
+            continue
+
+        # Generate config with each scanned IP
+        for ip_entry in scanned_ips:
+            # ip_entry format: "ip:port" or just "ip"
+            ip = ip_entry.split(":")[0] if ":" in ip_entry else ip_entry
+            cfg = generate_user_config(target_uid, target_user, iid_, addr=ip)
+            if cfg:
+                # Tag as "yours"
+                # Remove the #remark and add our own
+                base = cfg.split("#")[0]
+                remark = quote(f"Spider-{target_user.get('username', target_uid)} Yours ({source})")
+                configs.append(f"{base}#{remark}")
+
+    return {"ok": True, "source": source, "configs": configs}
 
 
 @app.get("/sub-all")
@@ -3196,6 +3281,8 @@ async def create_inbound(request: Request, _=Depends(require_auth)):
             "internal_port": int(telegram_settings.get("internal_port") or port or 44344),
             "external_port": int(telegram_settings.get("external_port") or external_port or 443),
             "external_domain": str(telegram_settings.get("external_domain") or external_domain or "").strip(),
+            # Optional channel link shown as promotion in generated proxy links
+            "promotion": str(telegram_settings.get("promotion") or body.get("promotion") or "").strip(),
         }
         port = telegram_settings["internal_port"]
         external_port = telegram_settings["external_port"]
@@ -3318,6 +3405,9 @@ async def update_inbound(inbound_id: str, request: Request, _=Depends(require_au
             for k, v in rs_body.items():
                 if v not in (None, "") or k not in ("private_key", "public_key"):
                     rs_cur[k] = v
+            # dest mirrors target for xray config
+            if "target" in rs_cur and rs_cur["target"]:
+                rs_cur["dest"] = rs_cur["target"]
             ib["reality_settings"] = rs_cur
         if "port" in body:
             _pv = str(body["port"] or "").strip()
@@ -4420,6 +4510,169 @@ async def api_user_sub(username: str):
         config = configs[1]
     elif not config and configs:
         config = configs[0]
+
+    return {
+        "username": user.get("username"),
+        "config_uuid": user.get("config_uuid", ""),
+        "protocol": user.get("protocol", "vless"),
+        "custom_ip_type": user.get("custom_ip_type", ""),
+        "custom_ip_count": len(all_custom),
+        "custom_configs": all_custom,
+        "custom_railway_configs": custom_railway,
+        "custom_cf_configs": custom_cf,
+        "sni_spoof_configs": sni_spoof_cfgs,
+        "sni_spoof_count": len(sni_spoof_cfgs),
+        "traffic_used_bytes": used,
+        "traffic_used_fmt": fmt_bytes(used),
+        "traffic_limit_bytes": limit,
+        "traffic_limit_fmt": "∞" if limit == 0 else fmt_bytes(limit),
+        "traffic_percent": traffic_pct,
+        "expire_days": expire_days,
+        "expire_at": user.get("expire_at"),
+        "expire_at_ts": expire_at_ts,
+        "created_at": user.get("created_at"),
+        "created_at_ts": created_at_ts,
+        "status": status,
+        "is_active": is_active,
+        "vless_link": config,
+        "config": config,
+        "configs": configs,
+        "worker_configs": list(user.get("worker_configs") or []),
+        "worker_countries": list(user.get("worker_countries") or user.get("proxy_countries") or []),
+        "inbound_ids": inbound_ids,
+        "sni": user.get("sni", ""),
+        "path": user.get("path", ""),
+        "transport_type": user.get("transport_type", "ws"),
+        "concurrent_connections": user.get("concurrent_connections", 3),
+        "server": user.get("server", ""),
+        "proxy_ips": user.get("proxy_ips", []),
+        "proxy_country": user.get("proxy_country", ""),
+        "proxy_countries": user.get("proxy_countries", []),
+        "proxy_ip_enabled": user.get("proxy_ip_enabled", False),
+        "max_ip_per_user": int(user.get("concurrent_connections", SETTINGS.get("max_ip_per_user", 3) or 3)),
+        "used_ips": len(USER_IP_MAP.get(user.get("user_id", ""), set())),
+    }
+
+
+@app.get("/api/public/sub-uuid/{uuid_key}")
+async def public_sub_data_by_uuid(uuid_key: str, request: Request):
+    """Public subscription data by config_uuid (no auth required).
+    Used by /subs/{uuid} graphical page.
+    """
+    async with USERS_LOCK:
+        user = None
+        target_uid = None
+        for uid, u in USERS.items():
+            if u.get("config_uuid") == uuid_key:
+                user = dict(u)
+                user["user_id"] = uid
+                target_uid = uid
+                break
+        if not user:
+            # fallback: check links
+            async with LINKS_LOCK:
+                link = LINKS.get(uuid_key)
+            if link and is_link_allowed(link):
+                host = SETTINGS.get("domain") or get_host()
+                proto = link.get("protocol", DEFAULT_PROTOCOL)
+                return {
+                    "username": link["label"],
+                    "config_uuid": uuid_key,
+                    "protocol": proto,
+                    "vless_link": generate_vless_link(uuid_key, host, remark=f"Spider-{link['label']}", protocol=proto),
+                    "configs": [generate_vless_link(uuid_key, host, remark=f"Spider-{link['label']}", protocol=proto)],
+                    "is_active": True,
+                    "status": "active",
+                    "traffic_used_fmt": "∞",
+                    "traffic_limit_fmt": "∞",
+                    "traffic_percent": 0,
+                }
+            raise HTTPException(status_code=404, detail="not found")
+
+    if _user_uses_worker_inbound(user):
+        user = await _worker_pull_user(target_uid, user)
+
+    # Build response similar to /api/sub/{username} but without auth
+    auto_check_user_expiry(user)
+    status = user.get("status", "active")
+    is_active = is_user_allowed(user)
+    if not is_active and status == "active":
+        status = "expired" if user.get("status") != "disabled" else "disabled"
+
+    # Build configs
+    configs = []
+    inbound_ids = user.get("inbound_ids") or []
+    stored_path_user = (user.get("path") or "").strip()
+    if inbound_ids:
+        for iid_ in inbound_ids:
+            ib = INBOUNDS.get(iid_)
+            try:
+                _p = (ib.get("protocol") if ib else "").lower()
+                _s = (ib.get("security") if ib else "").lower()
+                if ib and (_p == "reality" or _s == "reality"):
+                    if not str(ib.get("external_domain") or "").strip() or not str(ib.get("external_port") or "").strip():
+                        continue
+                if ib and _p == "worker":
+                    configs.extend(_worker_configs(target_uid, user, ib, stored_path_user, f"Spider-{user.get('username', target_uid)}"))
+                else:
+                    cfg = generate_user_config(target_uid, user, iid_)
+                    if cfg:
+                        configs.append(cfg)
+            except Exception:
+                continue
+    if not configs:
+        fallback_config = generate_user_config(target_uid, user, user.get("inbound_id"))
+        configs = [fallback_config] if fallback_config else []
+
+    # Custom scanned-IP configs
+    custom_cfgs = generate_custom_ip_configs(target_uid, user)
+    custom_railway = custom_cfgs.get("railway", [])
+    custom_cf = custom_cfgs.get("cf", [])
+    all_custom = custom_railway + custom_cf
+    if all_custom:
+        configs = configs + all_custom
+
+    # Sni Spoof
+    sni_spoof_cfgs = []
+    if user.get("sni_spoof_v2box"):
+        sni_spoof_cfgs = generate_sni_spoof_configs(target_uid, user)
+        if sni_spoof_cfgs:
+            configs = configs + sni_spoof_cfgs
+
+    # Status config
+    status_config = generate_status_config(user, configs)
+    if status_config:
+        configs = [status_config] + configs
+
+    # Pick config for QR
+    config = None
+    for c in configs[1:]:
+        if c and ("type=ws" in c or "type=xhttp" in c):
+            config = c
+            break
+    if not config and len(configs) > 1:
+        config = configs[1]
+    elif not config and configs:
+        config = configs[0]
+
+    used = user.get("traffic_used_bytes", 0)
+    limit = user.get("traffic_limit_bytes", 0)
+    traffic_pct = round(used / max(limit, 1) * 100, 1) if limit > 0 else 0
+    expire_days = None
+    expire_at_ts = None
+    if user.get("expire_at"):
+        try:
+            exp = datetime.fromisoformat(user["expire_at"])
+            expire_at_ts = int(exp.timestamp())
+            expire_days = max(0, (exp - datetime.now()).days)
+        except Exception:
+            pass
+    created_at_ts = None
+    if user.get("created_at"):
+        try:
+            created_at_ts = int(datetime.fromisoformat(user["created_at"]).timestamp())
+        except Exception:
+            pass
 
     return {
         "username": user.get("username"),
@@ -6104,7 +6357,8 @@ def _add_inbound_to_xray(cfg: dict, ib: dict, iid: str, host: str):
         # hard-coded target, otherwise the client SNI and Xray destination can
         # describe different TLS targets.
         rs_sni = str(rs.get("sni") or ib.get("sni") or "is1-ssl.mzstatic.com").strip()
-        rs_dest = str(rs.get("dest") or (rs_sni + ":443")).strip()
+        # dest mirrors target (the actual backend). Prefer target, fall back to dest.
+        rs_dest = str(rs.get("target") or rs.get("dest") or (rs_sni + ":443")).strip()
         if "://" in rs_dest:
             rs_dest = rs_dest.split("://", 1)[1]
         rs_server_names = rs.get("server_names") or rs.get("serverNames") or [rs_sni]
@@ -8008,11 +8262,11 @@ async def nodes_list(_=Depends(require_auth)):
 @app.post("/api/nodes/add")
 async def nodes_add(request: Request, _=Depends(require_auth)):
     body = await request.json()
-    url, key = _parse_node_target(body.get("target"))
-    if not key:
-        raise HTTPException(status_code=400, detail="API Key لازم است")
-    if not url:
-        url = f"http://127.0.0.1:{CONFIG['port']}"   # same-panel shortcut
+    domain = str(body.get("domain") or "").strip().replace("https://", "").replace("http://", "").rstrip("/")
+    key = str(body.get("api_key") or "").strip()
+    if not domain or not key:
+        raise HTTPException(status_code=400, detail="دامنه پنل و API Key هر دو الزامی هستند")
+    url = f"https://{domain}"
     async with NODES_LOCK:
         if len(NODES) >= NODE_LIMIT:
             raise HTTPException(status_code=400, detail=f"حداکثر {NODE_LIMIT} نود مجاز است")
@@ -8020,8 +8274,38 @@ async def nodes_add(request: Request, _=Depends(require_auth)):
             if n["url"] == url and n["key"] == key:
                 raise HTTPException(status_code=400, detail="این نود قبلا اضافه شده")
         nid = secrets.token_hex(4)
-        NODES[nid] = {"id": nid, "url": url, "key": key, "name": body.get("name") or "",
+        NODES[nid] = {"id": nid, "url": url, "key": key, "name": body.get("name") or domain,
                       "added_at": now_ir().isoformat(timespec="seconds")}
+    # Auto-create node inbound on first node
+    async with INBOUNDS_LOCK:
+        has_node_inbound = any((ib.get("protocol") or "").lower() == "node" for ib in INBOUNDS.values())
+    if not has_node_inbound:
+        # Node inbound just needs the node's domain. The remote panel should have
+        # a TLS WS inbound on port 443. We use the node's domain directly.
+        nname = f"Node: {domain}"
+        node_inbound_id = generate_short_id()
+        async with INBOUNDS_LOCK:
+            INBOUNDS[node_inbound_id] = {
+                "name": nname,
+                "protocol": "node",
+                "port": 0,
+                "network": "ws",
+                "security": "tls",
+                "domain": domain,
+                "external_domain": domain,
+                "sni": domain,
+                "external_port": "443",
+                "fingerprint": "chrome",
+                "reality_settings": {},
+                "xhttp_settings": {},
+                "ws_settings": {"path": "/ws/{uuid}"},
+                "grpc_settings": {},
+                "created_at": datetime.now().isoformat(),
+                "node_target_id": nid,
+            }
+        asyncio.create_task(save_state())
+        log_activity("inbound", f"اینباند Node برای نود {domain} ساخته شد", "ok")
+
     asyncio.create_task(save_state())
     log_activity("node", f"نود جدید اضافه شد: {url}", "ok")
     return {"ok": True, "id": nid}
@@ -8097,7 +8381,9 @@ async def _bot_publish_once() -> None:
     host = _safe_host(SETTINGS.get("domain"), "")
     if host:
         sub_link = f"https://{host}/subs/{cuuid}"
-    caption = f"Sub_Link\n{sub_link}\n\n\n{BOT_STATE['channel']}\n\nSpider Panel by @amirsp1ider"
+    caption = (f"Sub_Link\n{sub_link}\n\n\n"
+               f"{BOT_STATE['channel']}\n\n"
+               f"Spider Panel by <a href=\"https://t.me/amirsp1ider\">@amirsp1ider</a>")
     # QR image of the sub link via the existing QR generator
     photo = None
     try:
