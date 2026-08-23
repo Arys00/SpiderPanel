@@ -27,6 +27,22 @@
       "xhttp_settings": {},
       "path": "ws/df1bd011-d8b7-40da-89f6-c0d9d0c567e5",
       "user_id": "5299ff19215a"
+    },
+    "e27ca920-3f29-496e-ad85-9b45e0ebd2bf": {
+      "label": "realitytest",
+      "limit_bytes": 0,
+      "used_bytes": 0,
+      "created_at": "2026-08-24T02:37:33.011126",
+      "active": true,
+      "expires_at": "2026-09-23T02:37:33.011090",
+      "note": "لینک کاربر realitytest",
+      "is_default": false,
+      "sub_id": null,
+      "protocol": "reality",
+      "transport_type": "reality",
+      "xhttp_settings": {},
+      "path": "xhttp-siz10/stream-up/e27ca920-3f29-496e-ad85-9b45e0ebd2bf",
+      "user_id": "bda643d73834"
     }
   },
   "users": {
@@ -62,6 +78,39 @@
       "path": "/ws/df1bd011-d8b7-40da-89f6-c0d9d0c567e5",
       "transport_type": "ws",
       "telegram_secret": ""
+    },
+    "bda643d73834": {
+      "username": "realitytest",
+      "password_hash": "acbd3273fbd8574006f8c1aa194a6ebbd54a48d72322e01c6c668a29bf941a43",
+      "protocol": "vless",
+      "traffic_limit_bytes": 0,
+      "traffic_used_bytes": 0,
+      "expire_at": "2026-09-23T02:37:33.011090",
+      "concurrent_connections": 3,
+      "created_at": "2026-08-24T02:37:33.011119",
+      "status": "active",
+      "server": "IR-Tehran-01",
+      "config_uuid": "e27ca920-3f29-496e-ad85-9b45e0ebd2bf",
+      "subscription_uuid": "M5iL46vb9pkswDrcTdiHdg",
+      "sni": "",
+      "proxy_ip": "",
+      "proxy_country": "",
+      "proxy_ips": [],
+      "proxy_countries": [],
+      "proxy_ip_enabled": false,
+      "custom_ip_type": "",
+      "custom_ip_inbounds": {
+        "cf": [],
+        "railway": []
+      },
+      "sni_spoof_v2box": false,
+      "inbound_id": "default-reality",
+      "inbound_ids": [
+        "default-reality"
+      ],
+      "path": "/xhttp-siz10/stream-up/e27ca920-3f29-496e-ad85-9b45e0ebd2bf",
+      "transport_type": "reality",
+      "telegram_secret": ""
     }
   },
   "subs": {},
@@ -74,6 +123,11 @@
     "live_monitoring": true,
     "auto_ip_rotation": false,
     "security_token": "jfE_q8ca761HtI1hG8sD1Q",
+    "api_key": "spk_xO7BPzbFTmcOs78uw7d9uge5UV_D-RkM",
+    "server_ip": "152.55.185.148",
+    "server_country": "The Netherlands",
+    "server_country_code": "NL",
+    "docker_dns": "8.8.8.8,8.8.4.4",
     "bg_login": "",
     "bg_dashboard": "",
     "bg_sub": "",
@@ -125,19 +179,21 @@
       "network": "xhttp",
       "security": "reality",
       "domain": "",
-      "external_domain": "",
+      "external_domain": "spider-panel.up.railway.app",
       "sni": "is1-ssl.mzstatic.com",
-      "external_port": "",
+      "external_port": 443,
       "fingerprint": "chrome",
       "reality_settings": {
-        "private_key": "aNltAupPveBNG1iHgfEF9x1L0piJwb2JUKO0nPjtkkQ",
-        "public_key": "scbHnDaYoQUaegFF42XxbPOkeMx1zTsghSoZIS6CQxg",
-        "short_id": "db0b13742e",
-        "spiderx": "/",
-        "dest": "is1-ssl.mzstatic.com:443",
-        "mldsa65_seed": "tVelg9Lu6SjC7zDb1bpbVJFzLtmP-jA64zOuqoalYXI",
-        "mldsa65_verify": "v5fv40kBclelt-bO946-Xx5Bb4B-cK-w88IdXziUsoYw2_ALdDmyXqPJVcZfxse8h6WCpXzxSL4A4x2qY1yLGgwHPGKlYJ06Yo27GwEYJy1H77VQA3I8w7gWhY6HIyuBnSoYVJL89OV6SwQC17Mk8Y079IKMlIa80YXHXag3VTXMFXqcX-zPepD7a8CjXW0dAEN0wiBHnaeIB1DkJBgeqmc6V8wbBtXtzU9m9FhKP6lh8xe0_ExjBHriQ1t3ENAPMPLXeYHgM5jxALLQdUBiYiS6EeaZFvIcC_Jhnol7JqQI5VeRUsKdoLbP8O2yd7u_xEVScTFsXWEEM4YzWYbRJHKdqvc3g5sfv5BmKrwTiYsGs8wK0htTxf1XHdW5d1HN0ch-8pqwq-mG29_kypHDCCx_pz5UroS0ACCd4sMh84XItilBEHsOoYYP47OS7ULdw3CEOHvOicd31RVYgViTy-xnpozfbs1XmT6bAXNwpnWOitpQ_4SilU3ym7PxG5MbXN1UOR_pa4E5EQ9z0ZacBnFUMB0iff_eoWxV7343pXLsJ2aYJz-26ev_iv_1gKDA1vZF7EL47Wmr9Tvyt9hMauFYg3qdNF6Kqy_HugJGbCaMOWo6-0vYyDAbcRlCS4Rtlx3tbjblRJYX-2m8wpLMPsZi0hoaM36qK6j41RjPhpoEEMakGOIM3uTv_JwadqudyaqgVsD4xnl12EWColO25zhI4BkwsJt1xuve5nzPaSpfKnYUwzu2xcFG708GWfwUjEmDuWMXDMPOVNu6_GXlJjEKq0Y2He3IufUL3CAUcPyuVcMTq1i6egZnlvLfzVL5e_gh3pFAj9eQzS9hjdu02ZahM4q1M5MHj-IkiQ0Ioe-7rp51F2V6l5v11B3kyyxMQeZsw9C6vn9UHFzSgJZvzkJyd5jm7NLqI_70Pb5vHtVN6rtjt7pDncuhcziEVdju-dYXfGo2e4O5ENycYxPFnxZrQU6IClAg2y8i6pIFp5_LN-jVhLI6Zrk_ktPArArnXHJSvireKDCLTE8ri6W-3XDj0ufftjqg1pUEhnJfyJkIA2RXUgeU44dfHa-YKwIgLwjEsIwbvCzTdMClopgfUwmdlaJZPlbvFcygG4U8Y3oMaPTqKi5r1r4xWpCWAbG2LWWXYO8H-4S72EInr98oZU_EMMBVz8qYf1cu5bFVc3cckPe86oUPli8C43e9dCHC-Tl03wyGxaYo88I7PbaJe4NYuGN6jUIIIBRNg6WjhJTfcmba2jVaO4v5cEUF5F_3S5kQ28VL_VKBpB8tso2ZqMIY60vtxvzNc3lA6-zIgcVJTNfYtkw7zk8Iuc-Hc-Y4rMIyy5lF1muQl3dkz94UwO75TBBYAnMBbvEmZ3paf5t_mBQ8sEQB5R8AZWYEif07AyFk3rjI10SLTifjm0Tvu9Aew_jqyYokDWJAEQlyRxvi13Nb8GcoUd5f-bvSH6hJ6fpJsB3oCUJLJB97uGt2VsoPR51SxQL7UprydAZMWczAcm22Qi3ORIeXXn1P5UQjMNsFkC_hvqTEqBMdPmBixooJAjDqfUpY-8QtElpWsGinEpooAQHMqyXfKCV0-ZnXZbMHkR2mPygOM9Hl9inrj9TolFpK4HZ-od1ikJEOPPH85CqRh7cyHiuvIJb9hPrbSoFF4OMvNB23u35tUdg_GWyVuExvTXxkRxDQ_PotOdh2mYW9RPXzoC7eAIWFPQ0HpRaUGFTrC7TbpNR9Sw5_lMkCwqJTE2Mj3qVQ8E3pPnMPVgusdjxtoeRNU33M6KR_ViUh3Ik3HydCE0AYt_T_PUnYXvFT8bYQqD15tKdOzzw1qLY_qd1X0sx7nwuWy6OpeytZUOEyA5nDXweW1bzEP-hbupFxaN7R4DtA-sJSpD8G-u8H2ERCHNhYGf_pXzyEZByNnlTQllLKz4Gzg-XD5y-0YcnVC_XNWJ1qarf4ZYNk3iL1cDXxcIXKwSvzrPwFLkC6us4a0vB4ySlh6ftSSjCbHEXW2PzVLSjhB-6tGGFPw0O7rWIHAFkXJlJ76_v068oCuXuOZ9w5eptdZ9qOtbc-uOIerGlR9J7oC0e41MVSB9FhUCFpezeAC86Qtf5fOPgourYA7qkBK6xUDjuE-FeB27Q0T48nroZrEUOyr7l5j5gUcP3HQQwpnEDpgunwpl8ey9JrtFCwlnDA1FUNV8JQ76WrxtrNqqjaW7MCFZF7_r-xMJV4OqusBGd_wQzy7mcThrP-gwv3Na9aBN7xQlmAPSMBQKHT-lsYCEt5-e8wlONEs_94t_8HowCFIcGBh5ThECiRN3DNq_pBHfVgEnEW-66wa0bFcdlsB6sf_kk2e0okRFibDFrVSSVdTsp6C-zO0tTOpa6BIE-AF5tZoT60TASX7MQ9zuMT-woobbNWfk7usbEoqzEtnIJhAjWrXGp2sR6n7devSzDuFg2o_7TyAOolsJMpmRN_b6KQq2F9XZLIVr8Hg2R7GTAWT5jiSlzV9GhahVlUskp93VqvrRi9qZKBAMr7sWLVL_j_7qpQ-tQQweunSemI9XpSTIdzu52_L1S7pW0hLu3p5hcisGLCZ671o_RS_fNOGf6slwk",
-        "sni": "is1-ssl.mzstatic.com"
+        "target": "www.microsoft.com:443",
+        "sni": "is1-ssl.mzstatic.com",
+        "dest": "www.microsoft.com:443",
+        "server_names": [
+          "is1-ssl.mzstatic.com"
+        ],
+        "private_key": "GI3Ta_1dHBuTg_EKzOk8sAofJrHftixiUmgLsvHHhEM",
+        "public_key": "bZwhqUwFNqkzVwsDFsE6PVXirPhMfRJcikP3TZ_SaCM",
+        "short_id": "5a3ff5a13d",
+        "spiderx": "/"
       },
       "xhttp_settings": {
         "path": "/",
@@ -204,7 +260,7 @@
     "kv_namespace_id": "eefab90254fe491da1e71c4e45c83a98",
     "kv_namespace_title": "spider-27a71a-db",
     "remote_status": "online",
-    "last_heartbeat": "2026-08-23T18:45:12+03:30",
+    "last_heartbeat": "2026-08-24T03:43:37+03:30",
     "worker_users_online": 0,
     "worker_traffic_bytes": 0,
     "worker_user_count": 0,
@@ -792,11 +848,11 @@
       }
     },
     "last_sync": "2026-08-23T18:46:49+03:30",
-    "last_error": "",
+    "last_error": "Authentication error",
     "source_url": "https://raw.githubusercontent.com/NiREvil/vless/main/sub/ProxyIP-Daily.md",
     "auto_sync": true,
-    "sync_error": "",
-    "sync_count": 32,
+    "sync_error": "Authentication error",
+    "sync_count": 251,
     "tunnel_kv_namespace_id": "f1e6c98da53e4e80ad9907aef5931bef",
     "tunnel_kv_namespace_title": "spider-27a71a-db-tunnel",
     "tunnel_enabled": true,
@@ -836,5 +892,5 @@
   },
   "password_hash": "fcb3149c23e642e467520646d99c50a045d0a5908fda6468b74fab1e851a08fa",
   "saved_secret": "spider-panel-secret-key-v2",
-  "saved_at": "2026-08-23T18:46:49.995248"
+  "saved_at": "2026-08-24T03:44:55.385798"
 }
