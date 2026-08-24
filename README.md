@@ -1,6 +1,8 @@
 <div align="center">
-لینک دونیت جهت حمایت از اسپایدر پنل•https://daramet.com/spiderpanel•
- 🕷️ Spider Panel
+لینک دونیت جهت حمایت شما عزیزان
+https://daramet.com/spiderpanel
+ 
+🕷️ Spider Panel
 
 **VLESS / XHTTP / WS‑TLS subscription & proxy‑relay panel**
 FastAPI panel for Railway + Cloudflare Workers. Manage users, inbounds, Reality / WS‑TLS configs, browser‑side IP scanning and a multi‑location Cloudflare Worker proxy — all from one dashboard.
