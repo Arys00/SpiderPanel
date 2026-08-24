@@ -52,8 +52,24 @@ IRAN_TZ = ZoneInfo("Asia/Tehran")
 
 app = FastAPI(title="Spider Gateway", docs_url=None, redoc_url=None)
 
-# Import and include xhttp_siz10 router - deferred until globals are defined
-xhttp_router = None
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(request, exc):
+    import logging
+    logging.getLogger(__name__).error("Unhandled error: %s", exc, exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"ok": False, "detail": str(exc)[:200]},
+    )
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"ok": False, "detail": str(exc.detail)},
+    )
 
 CONFIG = {
     # The panel must always listen on 8080 (the user's VPN clients and any
@@ -1064,7 +1080,9 @@ def generate_telegram_proxy_link(user_id: str, user: dict, inbound: dict, remark
     # Optional promotion channel link appended to the proxy link (shown by TG)
     promotion = str(tg.get("promotion") or inbound.get("promotion") or "").strip()
     if promotion:
-        link = f"https://t.me/proxy?server={external_domain}&port={external_port}&secret={secret}&{promotion.lstrip('?&')}"
+        # Append as a separate query param `promo=` so the proxy link stays valid
+        promo_val = promotion.lstrip("?&").split("&")[0]
+        link = f"https://t.me/proxy?server={external_domain}&port={external_port}&secret={secret}&promo={quote(promo_val, safe='')}"
     else:
         link = f"https://t.me/proxy?server={external_domain}&port={external_port}&secret={secret}"
     return link
@@ -1441,10 +1459,13 @@ async def _start_telegram_proxy(inbound_id: str, inbound: dict):
     except Exception:
         ext_port = 0
     ext_domain = str(tg.get("external_domain") or inbound.get("external_domain") or "").strip()
+    # Preserve promotion if already present
+    promo = tg.get("promotion") or ""
     inbound["telegram_settings"] = {
         "internal_port": int_port,
         "external_port": ext_port,
         "external_domain": ext_domain,
+        "promotion": promo,
     }
     inbound["port"] = int_port
     inbound["external_port"] = ext_port
@@ -2310,7 +2331,8 @@ async def ensure_default_link():
 # ── Basic endpoints ───────────────────────────────────────────────────────────
 @app.get("/")
 async def root():
-    return {"service": "Spider Gateway", "version": "9.2", "status": "active", "channel": "https://t.me/spider_vpn1"}
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/spider")
 
 # ── Subscription ping (must be before /sub/{{identifier}}) ──────────────────
 @app.get("/sub/{identifier}/ping")
@@ -2515,76 +2537,65 @@ async def sub_categorized(uuid_key: str, request: Request):
     }
 
 
-@app.get("/api/sub-self-config")
-async def sub_self_config(request: Request):
-    """Self-config scanner: scans Railway IPs (if railway.app) or Cloudflare IPs,
-    tests up to 2 working IPs, returns 'yours' TLS configs with those IPs.
-    Only for TLS WS/XHTTP inbounds (not reality, xhttp, wireguard, telegram).
-    """
-    import base64
-    host = str(SETTINGS.get("domain") or request.headers.get("host") or "")
-    is_railway = "railway.app" in host
-    source = "Railway" if is_railway else "Cloudflare"
+@app.get("/api/public/self-config")
+async def public_self_config(request: Request, uuid: str = "", source: str = ""):
+    """Self-config scanner for the /subs/{uuid} page ("ساخت کانفیگ خودتان").
 
-    # Find the user from the request's sub URL (extract uuid from path)
-    # The request comes from sub.html page which calls this endpoint
-    # We need to find which user's sub page this is
+    Scans Railway IPs when the panel domain is railway.app, Cloudflare IPs
+    otherwise — or the requested ?source= explicitly. Returns at most TWO fresh
+    'yours' configs built from healthy IPs. TLS WS only: reality/xhttp/
+    wireguard/telegram/worker/node inbounds are skipped. Session-only.
+    """
+    host = str(SETTINGS.get("domain") or request.headers.get("host") or "")
+    is_railway_host = "railway.app" in host
+
     async with USERS_LOCK:
         target_user = None
         target_uid = None
         for uid, u in USERS.items():
-            if u.get("config_uuid") == request.query_params.get("uuid", ""):
-                target_user = u
+            if u.get("config_uuid") == uuid:
+                target_user = dict(u)
                 target_uid = uid
                 break
 
     if not target_user:
         return {"ok": False, "detail": "user not found", "configs": []}
 
-    # Scan appropriate IPs
-    scanned_ips = []
-    if is_railway:
-        # Use saved Railway IPs (from scanner)
-        cf_ips = _read_scanned_ips("railway")
-        scanned_ips = cf_ips[:2]  # max 2
-    else:
-        # Use saved Cloudflare IPs
-        cf_ips = _read_scanned_ips("cf")
-        scanned_ips = cf_ips[:2]
-
+    src = (source or ("railway" if is_railway_host else "cf")).lower()
+    if src not in ("cf", "railway"):
+        src = "cf"
+    scanned_ips = _read_scanned_ips(src)[:2]
+    label = "Railway" if src == "railway" else "Cloudflare"
     if not scanned_ips:
-        return {"ok": False, "detail": "no scanned IPs available", "configs": []}
+        return {"ok": True, "source": label, "configs": [],
+                "detail": f"no scanned {label} IPs available"}
 
-    # Build configs for this user using scanned IPs
     configs = []
-    inbound_ids = target_user.get("inbound_ids") or []
+    inbound_ids = [i for i in (target_user.get("inbound_ids") or []) if i]
+    seen_iids = set()
     for iid_ in inbound_ids:
         ib = INBOUNDS.get(iid_)
-        if not ib:
+        if not ib or iid_ in seen_iids:
             continue
+        seen_iids.add(iid_)
         _p = (ib.get("protocol") or "").lower()
         _s = (ib.get("security") or "").lower()
-        # Only TLS WS/XHTTP inbounds
-        if _p in ("wireguard", "telegram") or _s == "reality" or _p == "reality":
+        # TLS WS only — skip reality/xhttp/wireguard/telegram/worker/node
+        if _p in ("reality", "worker", "node", "wireguard", "telegram"):
             continue
-        if _p == "worker":
-            continue
-        if _p not in ("vless",) and _s != "tls":
+        if _s == "reality" or (ib.get("network") or "") == "xhttp":
             continue
 
-        # Generate config with each scanned IP
-        for ip_entry in scanned_ips:
-            # ip_entry format: "ip:port" or just "ip"
-            ip = ip_entry.split(":")[0] if ":" in ip_entry else ip_entry
+        for ip_entry in scanned_ips[:2]:
+            ip = str(ip_entry).split(":")[0]
             cfg = generate_user_config(target_uid, target_user, iid_, addr=ip)
             if cfg:
-                # Tag as "yours"
-                # Remove the #remark and add our own
                 base = cfg.split("#")[0]
-                remark = quote(f"Spider-{target_user.get('username', target_uid)} Yours ({source})")
+                uname = target_user.get("username", target_uid)
+                remark = quote(f"Spider-{uname} Yours ({label})")
                 configs.append(f"{base}#{remark}")
 
-    return {"ok": True, "source": source, "configs": configs}
+    return {"ok": True, "source": label, "configs": configs}
 
 
 @app.get("/sub-all")
@@ -3469,7 +3480,10 @@ async def update_inbound(inbound_id: str, request: Request, _=Depends(require_au
         if "wireguard_settings" in body and isinstance(body["wireguard_settings"], dict):
             ib["wireguard_settings"] = body["wireguard_settings"]
         if "telegram_settings" in body and isinstance(body["telegram_settings"], dict):
-            ib["telegram_settings"] = body["telegram_settings"]
+            # Merge — a partial patch (e.g. just promotion) must not wipe ports
+            tg_cur = ib.get("telegram_settings") or {}
+            tg_cur.update({k: v for k, v in body["telegram_settings"].items() if v not in (None, "")})
+            ib["telegram_settings"] = tg_cur
 
         if (ib.get("protocol") or "").lower() == "telegram":
             # Telegram Proxy: inbound settings are authoritative. Railway TCP
@@ -3863,6 +3877,15 @@ async def create_user(request: Request, _=Depends(require_auth)):
                 asyncio.create_task(_restart_telegram_proxy(_tg_iid))
     host = SETTINGS.get("domain") or get_host()
     asyncio.create_task(_xray_apply())  # refresh Xray clients after user change
+
+    # Node inbounds selected → create the same user (same UUID) on every node
+    new_u = USERS.get(user_id) or {}
+    has_node_inbound = any(
+        (INBOUNDS.get(i, {}) or {}).get("protocol", "").lower() == "node" for i in inbound_ids
+    )
+    if has_node_inbound:
+        asyncio.create_task(_propagate_user_to_nodes(new_u))
+
     return {
         "user_id": user_id,
         **USERS[user_id],
@@ -4059,6 +4082,70 @@ async def node_internal_delete(config_uuid: str, request: Request):
     return {"ok": False, "detail": "not found"}
 
 
+@app.post("/api/internal/user")
+async def node_internal_create(request: Request):
+    """Create a mirrored user (same UUID) — called by the master panel when a
+    user is created with a Node inbound. The local inbound used is the default
+    TLS WS one so the UUID resolves through this panel's own relay."""
+    api_key = request.headers.get("x-api-key") or ""
+    if not SETTINGS.get("api_key") or not secrets.compare_digest(api_key, str(SETTINGS["api_key"])):
+        raise HTTPException(status_code=401, detail="unauthorized")
+    body = await request.json()
+    cuuid = str(body.get("config_uuid") or "").strip()
+    username = (str(body.get("username") or "node-user") + "-n").strip()[:40]
+    if not cuuid:
+        raise HTTPException(status_code=400, detail="config_uuid required")
+    # Already exists? Just acknowledge.
+    async with USERS_LOCK:
+        for u in USERS.values():
+            if u.get("config_uuid") == cuuid:
+                return {"ok": True, "exists": True}
+    # Pick default TLS WS inbound
+    iid = "default" if "default" in INBOUNDS else (next(
+        (k for k, v in INBOUNDS.items() if v.get("protocol") == "vless"), None))
+    if not iid:
+        raise HTTPException(status_code=400, detail="no VLESS inbound on this panel")
+    uid = generate_short_id()
+    expire_raw = body.get("expire_at")
+    try:
+        expire_at = datetime.fromisoformat(expire_raw) if expire_raw else None
+    except Exception:
+        expire_at = None
+    async with USERS_LOCK:
+        USERS[uid] = {
+            "username": username,
+            "password_hash": hash_password(secrets.token_urlsafe(12)),
+            "protocol": "vless",
+            "traffic_limit_bytes": int(body.get("traffic_limit_bytes") or 0),
+            "traffic_used_bytes": 0,
+            "expire_at": expire_at.isoformat() if expire_at else None,
+            "concurrent_connections": int(body.get("concurrent_connections") or 3),
+            "created_at": datetime.now().isoformat(),
+            "status": "active",
+            "server": "Node",
+            "config_uuid": cuuid,
+            "subscription_uuid": str(body.get("subscription_uuid") or secrets.token_urlsafe(16)),
+            "inbound_id": iid,
+            "inbound_ids": [iid],
+            "path": f"/ws/{cuuid}",
+            "transport_type": "ws",
+            "telegram_secret": "",
+        }
+        async with LINKS_LOCK:
+            LINKS[cuuid] = {
+                "label": username, "limit_bytes": USERS[uid]["traffic_limit_bytes"],
+                "used_bytes": 0, "created_at": datetime.now().isoformat(),
+                "active": True, "expires_at": expire_at.isoformat() if expire_at else "",
+                "is_default": False, "sub_id": None, "protocol": "vless",
+                "transport_type": "ws", "path": cuuid, "user_id": uid,
+            }
+            PATH_INDEX[cuuid] = cuuid
+    asyncio.create_task(save_state())
+    asyncio.create_task(_xray_apply())
+    log_activity("node", f"کاربر آینه‌ای {username} از پنل اصلی ساخته شد", "ok")
+    return {"ok": True, "user_id": uid}
+
+
 @app.get("/api/internal/me")
 async def node_me(request: Request):
     """Identity endpoint for connected nodes — returns panel info for health checks."""
@@ -4120,6 +4207,33 @@ async def _propagate_to_nodes(user: dict) -> None:
             pass
 
 
+async def _propagate_user_to_nodes(user: dict) -> None:
+    """When a user is created with a Node inbound, create the same user (same
+    config_uuid) on every connected node via its API key. Nodes mirror the UUID
+    so the node section in sub.html stays synchronized across panels."""
+    async with NODES_LOCK:
+        node_list = list(NODES.values())
+    if not node_list:
+        return
+    payload = {
+        "username": user.get("username"),
+        "config_uuid": user.get("config_uuid"),
+        "subscription_uuid": user.get("subscription_uuid"),
+        "traffic_limit_bytes": user.get("traffic_limit_bytes", 0),
+        "expire_at": user.get("expire_at"),
+        "concurrent_connections": user.get("concurrent_connections", 3),
+        "inbound_id": "default",
+        "transport_type": "ws",
+    }
+    for node in node_list:
+        try:
+            await _node_request(node, "POST", "/api/internal/user", json_body=payload)
+        except Exception as e:
+            logger.warning(f"node user propagate failed: {e}")
+
+
+
+@app.delete("/api/users/{user_id}")
 async def delete_user(user_id: str, _=Depends(require_auth)):
     """Delete a user permanently."""
     ok = await _delete_user_internal(user_id)
@@ -8426,7 +8540,7 @@ async def _restore_bot():
         BOT_STATE.update({"token": tok, "channel": ch})
         me = await _tg_api("getMe")
         if isinstance(me, dict) and me.get("ok"):
-            BOT_STATE["bot_name"] = "@" + me["result"]["bot"]["username"]
+            BOT_STATE["bot_name"] = "@" + me["result"]["username"]
             BOT_STATE["connected"] = True
         else:
             BOT_STATE["connected"] = False
@@ -8454,7 +8568,7 @@ async def bot_connect(request: Request, _=Depends(require_auth)):
     if not (isinstance(me, dict) and me.get("ok")):
         BOT_STATE["token"] = ""
         raise HTTPException(status_code=400, detail="توکن بات نامعتبر است")
-    BOT_STATE["bot_name"] = "@" + me["result"]["bot"]["username"]
+    BOT_STATE["bot_name"] = "@" + me["result"]["username"]
     # webhook info (informational — polling-free design uses our own loop)
     wh = await _tg_api("getWebhookInfo")
     if isinstance(wh, dict) and wh.get("ok"):

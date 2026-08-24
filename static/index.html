@@ -5,7 +5,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Spider Panel v5</title>
+<title>Spider Panel v7</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -1006,7 +1006,7 @@ tr{animation:fadeIn .3s ease}
       <img src="/static/spider-logo.png" alt="S" onerror="this.style.display='none'" style="background:transparent;mix-blend-mode:screen">
       <div>
         <div class="sb-brand-t"><span>S</span>PIDER</div>
-        <div class="sb-brand-s">PANEL v5</div>
+        <div class="sb-brand-s">PANEL v7</div>
       </div>
     </div>
     <nav class="sb-nav">
@@ -1051,7 +1051,7 @@ tr{animation:fadeIn .3s ease}
         <span data-i18n="logout">خروج</span>
       </div>
     </nav>
-    <div class="sb-foot"><span class="dot"></span> Spider Panel v5.0</div>
+    <div class="sb-foot"><span class="dot"></span> Spider Panel v7.0</div>
   </aside>
 
   <!-- MAIN -->
@@ -1627,8 +1627,8 @@ tr{animation:fadeIn .3s ease}
           </div>
           <div class="px-hint" data-i18n="nodeHint">هر نود یک پنل دیگر است که با API Key خودش متصل می‌شود. حداکثر ۱۰ نود. کاربران اینباند Node روی همه نودها ساخته می‌شوند.</div>
           <div style="display:flex;gap:8px;margin-top:10px">
-            <input type="text" id="nd-domain" dir="ltr" placeholder="other-panel.up.railway.app" style="flex:2">
-            <input type="text" id="nd-api-key" dir="ltr" placeholder="API KEY" style="flex:2">
+            <input class="input-glass" type="text" id="nd-domain" dir="ltr" placeholder="other-panel.up.railway.app" style="flex:2">
+            <input class="input-glass" type="text" id="nd-api-key" dir="ltr" placeholder="API KEY" style="flex:2">
             <button class="btn btn-p" onclick="nodeAdd()" id="nd-add-btn"><span data-i18n="addNode">Add Node</span></button>
           </div>
           <div id="nd-list" class="nd-list" style="margin-top:14px"></div>
@@ -2110,7 +2110,9 @@ async function api(url, opts) {
     try { var j = JSON.parse(txt); throw new Error(j.detail || j.error || txt); } catch(e) { if (e.message && e.message !== txt) throw e; }
     throw new Error('خطای سرور: ' + r.status);
   }
-  return r.json();
+  var txt = await r.text();
+  if (!txt) return {};
+  try { return JSON.parse(txt); } catch(e) { return {ok: true, raw: txt}; }
 }
 
 // ─── Toast ───
