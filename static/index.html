@@ -5,7 +5,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Spider Panel v7</title>
+<title>Spider Panel v5</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -562,48 +562,6 @@ input,select,button,textarea{font-family:inherit}
   margin:0 0 14px 0!important;max-height:none!important;overflow:visible!important;
 }
 #tab-worker .panel:first-child,#tab-contact .panel:first-child{margin-top:0!important;}
-
-/* ── Worker tab accordion menu (Worker / Tunnel / Reverse) ── */
-.wkm-group{border-bottom:1px solid var(--border)}
-.wkm-group:last-child{border-bottom:none}
-.wkm-item{
-  width:100%;display:flex;align-items:center;gap:10px;padding:13px 4px;
-  background:none;border:none;color:var(--txt);font-size:14px;font-weight:600;
-  cursor:pointer;text-align:right;font-family:inherit;
-}
-html[lang="en"] .wkm-item{text-align:left}
-.wkm-ic{width:26px;height:26px;display:flex;align-items:center;justify-content:center;
-  border-radius:8px;background:rgba(0,255,170,.08);font-size:14px}
-.wkm-arrow{margin-right:auto;margin-left:0;transition:transform .3s cubic-bezier(.4,0,.2,1);
-  color:var(--txt2);display:flex}
-html[lang="en"] .wkm-arrow{margin-left:auto;margin-right:0}
-.wkm-item.open .wkm-arrow{transform:rotate(180deg)}
-.wkm-item.open{color:var(--neon)}
-.wkm-item.open .wkm-ic{background:rgba(0,255,170,.18)}
-.wkm-body{
-  max-height:0;overflow:hidden;opacity:0;
-  transition:max-height .35s cubic-bezier(.4,0,.2,1), opacity .25s ease;
-}
-.wkm-body.open{max-height:600px;opacity:1}
-.wkm-body-inner{padding:2px 6px 14px}
-
-/* ── Node list (glass cards) ── */
-.nd-list{display:flex;flex-direction:column;gap:10px}
-.nd-card{
-  display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;
-  background:linear-gradient(135deg,rgba(255,255,255,.07),rgba(255,255,255,.02));
-  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
-  border:1px solid rgba(255,255,255,.12);
-  animation:ndIn .35s cubic-bezier(.34,1.56,.64,1) both;
-}
-@keyframes ndIn{from{opacity:0;transform:translateY(-8px) scale(.97)}to{opacity:1;transform:none}}
-.nd-card.removing{animation:ndOut .3s ease both}
-@keyframes ndOut{to{opacity:0;transform:translateX(-24px) scale(.95)}}
-.nd-dot{width:9px;height:9px;border-radius:50%;background:#ff5f57;box-shadow:0 0 8px rgba(255,95,87,.7);flex:none}
-.nd-dot.on{background:#32d74b;box-shadow:0 0 8px rgba(50,215,75,.7)}
-.nd-info{flex:1;min-width:0}
-.nd-name{font-size:13px;font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.nd-url{font-size:11px;color:var(--txt2);font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:ltr}
 #tab-contact .contact-panel{height:auto!important;min-height:0!important;max-height:none!important;}
 .content{justify-content:flex-start!important;align-items:stretch!important;overflow-anchor:none!important;scroll-padding-top:0!important;}
 
@@ -1006,7 +964,7 @@ tr{animation:fadeIn .3s ease}
       <img src="/static/spider-logo.png" alt="S" onerror="this.style.display='none'" style="background:transparent;mix-blend-mode:screen">
       <div>
         <div class="sb-brand-t"><span>S</span>PIDER</div>
-        <div class="sb-brand-s">PANEL v7</div>
+        <div class="sb-brand-s">PANEL v5</div>
       </div>
     </div>
     <nav class="sb-nav">
@@ -1026,17 +984,17 @@ tr{animation:fadeIn .3s ease}
         <span class="nav-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/><path d="M11 8v3l2 2"/></svg></span>
         <span data-i18n="scanner">اسکنر IP</span>
       </div>
-      <div class="nav-item" id="nav-worker" onclick="switchTab('worker',this)">
+      <div class="nav-item" onclick="switchTab('worker',this)">
         <span class="nav-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
         <span data-i18n="worker">Worker</span>
       </div>
-      <div class="nav-item" id="nav-node" onclick="switchTab('node',this)">
-        <span class="nav-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="19" cy="19" r="2.5"/><line x1="7.3" y1="10.8" x2="16.7" y2="6.2"/><line x1="7.3" y1="13.2" x2="16.7" y2="17.8"/></svg></span>
-        <span data-i18n="node">Node</span>
+      <div class="nav-item" onclick="switchTab('autoconfig',this)">
+        <span class="nav-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/><circle cx="12" cy="12" r="4"/></svg></span>
+        <span data-i18n="autoconfig">Auto Config</span>
       </div>
-      <div class="nav-item" onclick="switchTab('bot',this)">
-        <span class="nav-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4m0 0a2 2 0 100-.01"/><circle cx="9" cy="13" r="1" fill="currentColor"/><circle cx="15" cy="13" r="1" fill="currentColor"/><path d="M9 17h6"/></svg></span>
-        <span data-i18n="bot">Bot</span>
+      <div class="nav-item" id="nav-tunnel" onclick="switchTab('tunnel',this)">
+        <span class="nav-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10a8 8 0 0116 0v10"/><line x1="2" y1="20" x2="22" y2="20"/><line x1="9" y1="20" x2="9" y2="13"/><line x1="15" y1="20" x2="15" y2="13"/></svg></span>
+        <span data-i18n="tunnel">Tunnel</span>
       </div>
       <div class="nav-item" onclick="switchTab('settings',this)">
         <span class="nav-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></span>
@@ -1051,7 +1009,7 @@ tr{animation:fadeIn .3s ease}
         <span data-i18n="logout">خروج</span>
       </div>
     </nav>
-    <div class="sb-foot"><span class="dot"></span> Spider Panel v7.0</div>
+    <div class="sb-foot"><span class="dot"></span> Spider Panel v5.0</div>
   </aside>
 
   <!-- MAIN -->
@@ -1312,41 +1270,12 @@ tr{animation:fadeIn .3s ease}
         </div>
       </div>
 
-      <!-- WORKER TAB (merged: Worker / Tunnel / Reverse accordion) -->
+      <!-- WORKER TAB (Cloudflare Worker proxy manager) -->
       <div class="tab-content hidden" id="tab-worker">
-        <div class="panel" id="wk-menu-panel" style="margin-bottom:14px">
-          <div class="wkm-group">
-            <button type="button" class="wkm-item" id="wkm-worker" onclick="wkMenuToggle('worker')">
-              <span class="wkm-ic">⚡</span><span data-i18n="worker">Worker</span>
-              <span class="wkm-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg></span>
-            </button>
-            <div class="wkm-body" id="wkb-worker"><div class="wkm-body-inner">
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0">
-                <span style="font-size:12px;color:var(--txt2)" data-i18n="workerStatus">وضعیت</span>
-                <span id="worker-badge" class="badge badge-g"></span>
-              </div>
-            </div></div>
-          </div>
-          <div class="wkm-group">
-            <button type="button" class="wkm-item" id="wkm-tunnel" onclick="wkMenuToggle('tunnel')">
-              <span class="wkm-ic">🚇</span><span data-i18n="tunnel">Tunnel</span>
-              <span class="wkm-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg></span>
-            </button>
-            <div class="wkm-body" id="wkb-tunnel"><div class="wkm-body-inner" id="wkb-tunnel-inner"></div></div>
-          </div>
-          <div class="wkm-group wkm-last">
-            <button type="button" class="wkm-item" id="wkm-reverse" onclick="wkMenuToggle('reverse')">
-              <span class="wkm-ic">🔄</span><span data-i18n="reverse">Reverse</span>
-              <span class="wkm-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg></span>
-            </button>
-            <div class="wkm-body" id="wkb-reverse"><div class="wkm-body-inner" id="wkb-reverse-inner"></div></div>
-          </div>
-        </div>
-
-        <div class="panel" id="wk-main-panel">
+        <div class="panel">
           <div class="panel-h" style="justify-content:space-between">
             <span class="glow">⚡ <span data-i18n="worker">Worker</span></span>
-            <span style="margin-right:auto"></span>
+            <span id="worker-badge" class="badge badge-g" style="margin-right:auto"></span>
           </div>
 
           <!-- DAILY PROXY SOURCE (always available) -->
@@ -1468,30 +1397,6 @@ tr{animation:fadeIn .3s ease}
           </div>
         </div>
 
-        <!-- Server IP + Country + API Key -->
-        <div class="panel" style="margin-bottom:14px">
-          <div class="panel-h"><span class="glow" data-i18n="serverIdentity">Server Identity & API Key</span></div>
-          <div class="set-row">
-            <span class="set-lbl" data-i18n="serverIpCountry">IP سرور و کشور</span>
-            <span dir="ltr" style="font-size:13px;display:flex;align-items:center;gap:8px">
-              <span id="srv-flag" style="font-size:20px">…</span>
-              <b id="srv-ip" style="font-family:monospace;color:var(--neon)">…</b>
-              <span id="srv-country" style="font-size:11px;color:var(--txt2)"></span>
-            </span>
-          </div>
-          <div class="set-row">
-            <span class="set-lbl">
-              <span data-i18n="apiKeyLbl">API Key پنل</span>
-              <div class="px-hint" style="font-size:10px;margin-top:2px" data-i18n="apiKeyHint">با هدر X-API-Key می‌توانید API پنل را از بیرون کنترل کنید.</div>
-            </span>
-            <div style="display:flex;gap:6px;align-items:center">
-              <code id="api-key-val" dir="ltr" style="font-size:10px;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--txt2);background:var(--bg2,#111);padding:5px 8px;border-radius:8px"></code>
-              <button class="btn btn-sm btn-g" onclick="copyApiKey()">کپی</button>
-              <button class="btn btn-sm btn-g" onclick="rotateApiKey()">⟳</button>
-            </div>
-          </div>
-        </div>
-
         <div class="panel">
           <div class="panel-h"><span class="glow" data-i18n="appearance">تنظیمات ظاهری</span></div>
           <div class="set-row">
@@ -1540,6 +1445,26 @@ tr{animation:fadeIn .3s ease}
         </div>
       </div>
 
+      <!-- AUTO CONFIG TAB -->
+      <div class="tab-content hidden" id="tab-autoconfig">
+        <div class="panel">
+          <div style="text-align:center;padding:30px 0 20px">
+            <button class="btn btn-p" id="ac-auto-btn" onclick="acStart()" style="font-size:16px;padding:14px 60px;border-radius:14px">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="vertical-align:-3px"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+              <span data-i18n="acAutoBtn">Auto</span>
+            </button>
+            <div class="px-hint" style="margin-top:12px" data-i18n="acHint">اسکن کامل خودکار: پینگ دامنه‌ها → انتخاب Railway/Cloudflare → اسکن IP → تست دامنه‌های TCP → اسکن SNI → پینگ نهایی پنل. همه مراحل با اینترنت خود شما انجام می‌شود.</div>
+          </div>
+          <!-- Step 0: domain input -->
+          <div class="f-g" id="ac-domain-wrap" style="display:flex;gap:8px">
+            <input type="text" id="ac-domain" dir="ltr" placeholder="your-panel.up.railway.app" style="flex:1">
+          </div>
+          <!-- Progress log -->
+          <div class="scn-list" id="ac-log" style="margin-top:12px;display:none"></div>
+          <!-- Results -->
+          <div id="ac-results" style="margin-top:12px"></div>
+        </div>
+      </div>
 
       <!-- TUNNEL TAB -->
       <div class="tab-content hidden" id="tab-tunnel">
@@ -1577,96 +1502,38 @@ tr{animation:fadeIn .3s ease}
             <span id="tn-heartbeat" dir="ltr" style="font-size:12px;color:var(--txt2)"></span>
           </div>
 
+          <!-- REVERSE (below tunnel info) -->
+          <div class="panel-h" style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px">
+            <span class="glow" data-i18n="reverse">Reverse</span>
+          </div>
+          <div class="set-row" style="border-bottom:none">
+            <span class="set-lbl">
+              <span data-i18n="reverseSwitch">حالت Reverse</span>
+              <div class="px-hint" style="font-size:10px;margin-top:2px" data-i18n="reverseHint">با روشن کردن این سوییچ، مسیر اتصال برعکس می‌شود: User → Worker → Railway → Site. دامنه کانفیگ، دامنه Worker و مسیر /reverse/{uuid} خواهد بود.</div>
+            </span>
+            <button type="button" class="ios-switch" id="tn-reverse-sw" onclick="tunnelToggleReverse(this)" title="Reverse"></button>
+          </div>
+          <div id="tn-reverse-info" class="hidden">
+            <div class="set-row">
+              <span class="set-lbl" data-i18n="tunnelPath">مسیر اتصال</span>
+              <span dir="ltr" style="font-size:12px;color:var(--txt)">User → Cloudflare Worker → Railway → Site</span>
+            </div>
+            <div class="set-row">
+              <span class="set-lbl" data-i18n="workerPing">پینگ سرور تا Worker</span>
+              <span id="tn-reverse-ping" dir="ltr" style="font-size:12px;color:var(--neon)">--</span>
+            </div>
+            <div class="set-row">
+              <span class="set-lbl" data-i18n="tunnelInboundPath">دامنه و مسیر</span>
+              <span id="tn-reverse-path" dir="ltr" style="font-size:11px;font-family:monospace;color:var(--txt)"></span>
+            </div>
+            <div class="set-row">
+              <span class="set-lbl" data-i18n="tunnelKv">KV اختصاصی Reverse</span>
+              <span id="tn-reverse-kv" dir="ltr" style="font-size:11px;font-family:monospace;color:var(--txt2);word-break:break-all"></span>
+            </div>
+          </div>
+
           <div class="scn-list" id="tn-logs" style="margin-top:10px"></div>
           <button class="btn btn-p" style="width:100%;margin-top:12px" id="tn-create-btn" onclick="tunnelCreate()"><span data-i18n="tunnelCreate">ایجاد اینباند Tunnel</span></button>
-        </div>
-      </div>
-
-      <!-- REVERSE TAB -->
-      <div class="tab-content hidden" id="tab-reverse">
-        <div class="panel hidden" id="reverse-ready">
-          <div class="panel-h" style="justify-content:space-between">
-            <span class="glow" data-i18n="reverse">Reverse</span>
-            <span id="rv-status-badge" class="badge badge-g" style="margin-right:auto"></span>
-          </div>
-          <div class="set-row">
-            <span class="set-lbl" data-i18n="tunnelPath">مسیر اتصال</span>
-            <span dir="ltr" style="font-size:12px;color:var(--txt)">User → Cloudflare Worker → Railway → Site</span>
-          </div>
-          <div class="set-row">
-            <span class="set-lbl" data-i18n="workerPing">پینگ سرور تا Worker</span>
-            <span id="rv-ping" dir="ltr" style="font-size:12px;color:var(--neon)">--</span>
-          </div>
-          <div class="set-row">
-            <span class="set-lbl" data-i18n="tunnelInboundPath">دامنه و مسیر</span>
-            <span id="rv-path" dir="ltr" style="font-size:11px;font-family:monospace;color:var(--txt)"></span>
-          </div>
-          <div class="set-row">
-            <span class="set-lbl" data-i18n="tunnelKv">KV اختصاصی Reverse</span>
-            <span id="rv-kv" dir="ltr" style="font-size:11px;font-family:monospace;color:var(--txt2);word-break:break-all"></span>
-          </div>
-          <div class="set-row">
-            <span class="set-lbl" data-i18n="reverseInbound">اینباند Reverse</span>
-            <span id="rv-inbound" dir="ltr" style="font-size:11px;font-family:monospace;color:var(--txt)"></span>
-          </div>
-
-          <div class="scn-list" id="rv-logs" style="margin-top:10px"></div>
-          <div style="display:flex;gap:8px;margin-top:12px">
-            <button class="btn btn-p" style="flex:1" id="rv-enable-btn" onclick="reverseToggle(true)"><span data-i18n="reverseEnable">فعال‌سازی Reverse</span></button>
-            <button class="btn btn-g hidden" style="flex:1" id="rv-disable-btn" onclick="reverseToggle(false)"><span data-i18n="reverseDisable">غیرفعال‌سازی</span></button>
-          </div>
-        </div>
-      </div>
-
-      <!-- NODE TAB -->
-      <div class="tab-content hidden" id="tab-node">
-        <div class="panel">
-          <div class="panel-h" style="justify-content:space-between">
-            <span class="glow" data-i18n="node">Node</span>
-            <span id="nd-count-badge" class="badge badge-g" style="margin-right:auto">0 / 10</span>
-          </div>
-          <div class="px-hint" data-i18n="nodeHint">هر نود یک پنل دیگر است که با API Key خودش متصل می‌شود. حداکثر ۱۰ نود. کاربران اینباند Node روی همه نودها ساخته می‌شوند.</div>
-          <div style="display:flex;gap:8px;margin-top:10px">
-            <input class="input-glass" type="text" id="nd-domain" dir="ltr" placeholder="other-panel.up.railway.app" style="flex:2">
-            <input class="input-glass" type="text" id="nd-api-key" dir="ltr" placeholder="API KEY" style="flex:2">
-            <button class="btn btn-p" onclick="nodeAdd()" id="nd-add-btn"><span data-i18n="addNode">Add Node</span></button>
-          </div>
-          <div id="nd-list" class="nd-list" style="margin-top:14px"></div>
-        </div>
-      </div>
-
-      <!-- BOT TAB -->
-      <div class="tab-content hidden" id="tab-bot">
-        <div class="panel">
-          <div class="panel-h"><span class="glow" data-i18n="bot">Bot</span></div>
-          <div id="bot-setup">
-            <div class="px-hint" data-i18n="botSetupHint">اتصال ربات تلگرام برای انتشار خودکار کانفیگ در کانال.</div>
-            <div class="f-g"><label data-i18n="botToken">توکن بات تلگرام</label><input type="text" id="bt-token" dir="ltr" placeholder="123456:ABC-DEF..."></div>
-            <div class="f-g"><label data-i18n="botChannel">آیدی چنل (@name یا -100...)</label><input type="text" id="bt-channel" dir="ltr" placeholder="@my_channel"></div>
-            <button class="btn btn-p" style="width:100%" id="bt-create-btn" onclick="botConnect()"><span data-i18n="botCreate">Create</span></button>
-          </div>
-          <div id="bot-status" class="hidden">
-            <div class="set-row"><span class="set-lbl" data-i18n="botState">وضعیت</span><span id="bt-state" class="badge badge-g"></span></div>
-            <div class="set-row"><span class="set-lbl" data-i18n="botBotName">ربات</span><span id="bt-name" dir="ltr" style="font-size:12px;color:var(--txt)"></span></div>
-            <div class="set-row"><span class="set-lbl" data-i18n="botChannelLbl">چنل</span><span id="bt-ch" dir="ltr" style="font-size:12px;color:var(--txt)"></span></div>
-            <div class="set-row"><span class="set-lbl" data-i18n="botWebhook">وبهوک</span><span id="bt-wh" dir="ltr" style="font-size:11px;font-family:monospace;color:var(--txt2);word-break:break-all"></span></div>
-            <div class="f-g" style="margin-top:12px"><label data-i18n="botInterval">فاصله ارسال هر کاربر</label>
-              <div style="display:flex;gap:8px">
-                <input type="number" id="bt-int-val" min="1" value="30" style="flex:1">
-                <select id="bt-int-unit" style="width:110px">
-                  <option value="s" data-i18n="sec">ثانیه</option>
-                  <option value="m" selected data-i18n="min">دقیقه</option>
-                  <option value="h" data-i18n="hour">ساعت</option>
-                </select>
-              </div>
-            </div>
-            <div style="display:flex;gap:8px;margin-top:8px">
-              <button class="btn btn-p" style="flex:1" id="bt-start-btn" onclick="botStart()">شروع</button>
-              <button class="btn btn-g hidden" style="flex:1" id="bt-stop-btn" onclick="botStop()">توقف</button>
-              <button class="btn btn-sm btn-g" onclick="botDisconnect()">قطع اتصال</button>
-            </div>
-            <div class="scn-list" id="bt-log" style="margin-top:10px"></div>
-          </div>
         </div>
       </div>
 
@@ -1797,17 +1664,13 @@ tr{animation:fadeIn .3s ease}
     <div id="ib-reality-fields" class="hidden">
       <div class="divider"></div>
       <div style="font-size:11px;color:var(--neon);font-weight:700;margin-bottom:8px" data-i18n="realitySettings">تنظیمات Reality</div>
-      <div class="f-g"><label data-i18n="sniLabel">SNI (Server Name)</label>
+      <div class="f-g"><label>SNI (Server Name / Destination)</label>
         <div style="display:flex;gap:6px;align-items:flex-end">
           <input type="text" id="ib-sni" value="" dir="ltr" placeholder="مثلاً www.google.com" style="flex:1">
           <button type="button" class="btn btn-sm btn-b" onclick="snPickFastest()" title="سریع‌ترین SNI از sni_reality.txt" style="border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
           </button>
         </div>
-      </div>
-      <div class="f-g"><label data-i18n="targetLabel">Target (Dest — آدرس واقعی اتصال)</label>
-        <input type="text" id="ib-target" value="" dir="ltr" placeholder="مثلاً www.google.com:443">
-        <div class="px-hint" style="font-size:10px">می‌تواند با SNI متفاوت باشد؛ خالی = SNI:443.</div>
       </div>
       <div class="f-r">
         <div class="f-g"><label>Private Key (x25519)</label><input type="text" id="ib-privkey" dir="ltr" data-i18n-placeholder="autoGen" placeholder="تولید خودکار"></div>
@@ -1869,7 +1732,6 @@ tr{animation:fadeIn .3s ease}
         <div class="f-g"><label>External Port</label><input type="number" id="ib-tg-extport" value="443" dir="ltr" placeholder="443"></div>
       </div>
       <div class="f-g"><label>External Domain</label><input type="text" id="ib-tg-domain" dir="ltr" placeholder="proxy.example.com"></div>
-      <div class="f-g"><label data-i18n="tgPromotion">لینک چنل (Promotion)</label><input type="text" id="ib-tg-promo" dir="ltr" placeholder="https://t.me/my_channel"><div class="px-hint" style="font-size:10px">در پروکسی ساخته‌شده به‌عنوان کانال تبلیغی (sponsored) قرار می‌گیرد.</div></div>
       <div id="ib-tg-railway-info" class="px-hint" style="margin-top:-4px">External Domain/Port entered for this Telegram inbound are authoritative. Railway TCP values are shown only as advisory.</div>
     </div>
 
@@ -2050,12 +1912,6 @@ var I18N = {
     'panelUpdateHint': 'Clicking this pulls the latest repo from GitHub and installs it on the server (amirh00sain/SpiderPanel). When finished, restart/redeploy the panel on Railway to apply the new version.',
     'backupRestore': 'Backup & Restore', 'backup': 'Backup (Download)', 'restore': 'Restore (Upload)', 'backupRestoreHint': 'Full backup includes: users, links, inbounds, scans, settings, password, groups, and Worker config. JSON file is downloaded/uploaded.',
     'autoconfig': 'Auto Config', 'tunnel': 'Tunnel',
-    'node': 'Node', 'nodeHint': 'Each node is another panel connected via its own API Key (max 10). Users on the Node inbound are created across all connected nodes.', 'addNode': 'Add Node',
-    'bot': 'Bot', 'botSetupHint': 'Connect a Telegram bot to auto-publish configs to a channel.', 'botToken': 'Telegram Bot Token', 'botChannel': 'Channel ID (@name or -100...)', 'botCreate': 'Connect', 'botState': 'Status', 'botBotName': 'Bot', 'botChannelLbl': 'Channel', 'botWebhook': 'Webhook', 'botStart': 'Start', 'botStop': 'Stop', 'botDisconnect': 'Disconnect', 'botInterval': 'Publish Interval',
-    'serverIpCountry': 'Server IP & Country', 'apiKeyLbl': 'Panel API Key', 'apiKeyHint': 'Use the X-API-Key header to control the panel API externally.',
-    'tgPromotion': 'Telegram Promotion', 'tgPromotionHint': 'Promotional text appended to Telegram proxy configs.',
-    'dockerDns': 'Docker DNS', 'dockerDnsHint': 'Override DNS to 8.8.8.8 and 8.8.4.4 for better resolution.',
-    'realityTarget': 'Reality Target', 'realityTargetHint': 'The real backend address behind SNI — separate from the SNI shown to the client.',
     'acAutoBtn': 'Auto', 'acHint': 'Full automatic scan: ping domains → pick Railway/Cloudflare → IP scan → TCP domain test → SNI scan → final panel ping. All steps run from your own internet.',
     'acEnterDomain': 'Please enter the panel domain', 'acPingingDomains': 'Pinging domains...', 'acYourDomain': 'Your domain', 'acPickDomain': 'Pick a domain (Railway → scan Railway IPs, otherwise → scan Cloudflare IPs):',
     'acScanningRailway': 'Scanning Railway IPs, saving top 10...', 'acScanningCf': 'Scanning Cloudflare IPs, saving top 10...',
@@ -2110,9 +1966,7 @@ async function api(url, opts) {
     try { var j = JSON.parse(txt); throw new Error(j.detail || j.error || txt); } catch(e) { if (e.message && e.message !== txt) throw e; }
     throw new Error('خطای سرور: ' + r.status);
   }
-  var txt = await r.text();
-  if (!txt) return {};
-  try { return JSON.parse(txt); } catch(e) { return {ok: true, raw: txt}; }
+  return r.json();
 }
 
 // ─── Toast ───
@@ -2331,47 +2185,9 @@ function switchTab(tab, el) {
   if (tab === 'users') loadUsers();
   if (tab === 'inbounds') loadInbounds();
   if (tab === 'scanner') scnInit();
-  if (tab === 'worker') { loadWorker(); loadWkAccordion(); }
-  if (tab === 'tunnel') switchTab('worker');
-  if (tab === 'reverse') { loadReverse(); }
-  if (tab === 'node') loadNodes();
-  if (tab === 'bot') botInit();
+  if (tab === 'worker') loadWorker();
+  if (tab === 'tunnel') loadTunnel();
   closeSidebar();
-}
-
-// ─── Worker tab accordion (Worker / Tunnel / Reverse) ───
-var WK_MENU_OPEN = null;
-function wkMenuToggle(which) {
-  var body = $id('wkb-' + which);
-  var btn = $id('wkm-' + which);
-  if (!body || !btn) return;
-  var isOpen = body.classList.contains('open');
-  // close any open sibling first (one menu at a time)
-  ['worker','tunnel','reverse'].forEach(function(w){
-    var b = $id('wkb-' + w), i = $id('wkm-' + w);
-    if (b && w !== which && b.classList.contains('open')) {
-      b.style.maxHeight = b.scrollHeight + 'px';
-      requestAnimationFrame(function(){ b.classList.remove('open'); b.style.maxHeight = ''; });
-      if (i) i.classList.remove('open');
-    }
-  });
-  if (isOpen) {
-    body.style.maxHeight = body.scrollHeight + 'px';
-    requestAnimationFrame(function(){ body.classList.remove('open'); body.style.maxHeight = ''; });
-    btn.classList.remove('open');
-    WK_MENU_OPEN = null;
-  } else {
-    body.classList.add('open');
-    body.style.maxHeight = body.scrollHeight + 'px';
-    setTimeout(function(){ if (body.classList.contains('open')) body.style.maxHeight = ''; }, 380);
-    btn.classList.add('open');
-    WK_MENU_OPEN = which;
-    if (which !== 'worker') loadTunnel();   // populates tunnel + reverse inner panes
-  }
-}
-async function loadWkAccordion() {
-  try { await loadWorker(); } catch(e){}
-  await loadTunnel();
 }
 
 function openSidebar() { $id('sidebar').classList.add('open'); $id('sidebar-backdrop').classList.add('show'); }
@@ -2384,8 +2200,6 @@ async function loadAll() {
   loadUsers();
   loadInbounds();
   loadProxyCountries();
-  loadServerIdentity();
-  loadApiKey();
   // Keep the worker proxy pool warm so the create-user country dropdowns work
   // even before the Worker tab is opened.
   if (typeof loadWorker === 'function') loadWorker();
@@ -3173,45 +2987,6 @@ function loadSettings() {
   // Already handled by theme pickers in HTML
 }
 
-// ─── Server identity (IP + country flag) + API Key ───
-async function loadServerIdentity() {
-  try {
-    var r = await api('/api/server-identity');
-    $id('srv-ip').textContent = r.ip || '—';
-    $id('srv-flag').textContent = r.flag || '🏳️';
-    $id('srv-country').textContent = r.country || '';
-  } catch(e) {
-    $id('srv-ip').textContent = '—';
-    $id('srv-flag').textContent = '⚠️';
-  }
-}
-
-async function loadApiKey() {
-  try {
-    var r = await api('/api/api-key');
-    $id('api-key-val').textContent = r.api_key || '—';
-    $id('api-key-val').title = r.api_key || '';
-  } catch(e) {
-    $id('api-key-val').textContent = '—';
-  }
-}
-
-function copyApiKey() {
-  var v = $id('api-key-val').textContent;
-  if (!v || v === '—') return;
-  navigator.clipboard.writeText(v).then(function(){ toast('کپی شد', 'ok'); }, function(){ toast('خطا در کپی', 'err'); });
-}
-
-async function rotateApiKey() {
-  if (!confirm('کلید جدید ساخته شد؟ نودهای متصل باید به‌روزرسانی شوند.')) return;
-  try {
-    var r = await api('/api/api-key/rotate', {method: 'POST'});
-    $id('api-key-val').textContent = r.api_key;
-    $id('api-key-val').title = r.api_key;
-    toast('کلید جدید ساخته شد', 'ok');
-  } catch(e) { toast(e.message, 'err'); }
-}
-
 async function changePassword(e) {
   e.preventDefault();
   try {
@@ -3915,6 +3690,166 @@ function scnInit() {
   spfInit(); // Initialize spoof scanner
 }
 
+// ═══ AUTO CONFIG ═══
+// Full automatic pipeline, all steps run from the USER'S internet (browser
+// ping + backend TCP probe). Flow:
+//   1. ping user-domain, railway.app, worker.dev
+//   2. user picks the domain (Railway → scan Railway IPs, else Cloudflare IPs)
+//   3. scan that provider's IPs, save top 10 (with ping, 1 decimal)
+//   4. test TCP domains (own domain + IP both)
+//   5. scan SNIs, save the fastest
+//   6. final ping to the panel's current domain
+var AC_PING = { user: null, railway: null, worker: null };
+var AC_CHOSEN = null;
+
+function acLog(msg) {
+  var el = $id('ac-log');
+  if (!el) return;
+  el.style.display = 'block';
+  var line = document.createElement('div');
+  line.className = 'scn-item';
+  line.innerHTML = '<span class="scn-ip">' + esc(msg) + '</span>';
+  el.appendChild(line);
+}
+
+async function acPingOne(host) {
+  var t0 = performance.now();
+  try {
+    var ctrl = new AbortController();
+    var timer = setTimeout(function(){ try{ctrl.abort();}catch(e){} }, 6000);
+    await fetch('https://' + host + '/', {mode:'no-cors', cache:'no-store', signal: ctrl.signal});
+    clearTimeout(timer);
+    return Math.round((performance.now() - t0) * 10) / 10;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function acStart() {
+  var d = ($id('ac-domain').value || '').trim().toLowerCase();
+  if (!d) { toast(t('acEnterDomain'), 'warn'); return; }
+  AC_PING = { user: null, railway: null, worker: null };
+  var btn = $id('ac-auto-btn');
+  if (btn) { btn.disabled = true; }
+  $id('ac-log').style.display = 'block';
+  $id('ac-log').innerHTML = '';
+  $id('ac-results').innerHTML = '';
+  AC_PING.user = await acPingOne(d);
+  acLog(t('acYourDomain') + ' (' + esc(d) + '): ' + (AC_PING.user == null ? '✗' : AC_PING.user + ' ms'));
+  acLog(t('acPingingDomains'));
+  var [rw, wk] = await Promise.all([acPingOne('railway.app'), acPingOne('worker.dev')]);
+  AC_PING.railway = rw; AC_PING.worker = wk;
+  acLog('railway.app: ' + (rw == null ? '✗' : rw + ' ms') + '  |  worker.dev: ' + (wk == null ? '✗' : wk + ' ms'));
+  acShowPick();
+  if (btn) { btn.disabled = false; }
+}
+
+function acShowPick() {
+  var results = $id('ac-results');
+  if (!results) return;
+  var wrap = document.getElementById('ac-domain-wrap');
+  if (wrap) wrap.style.display = 'flex';
+  results.innerHTML =
+    '<div class="px-hint" style="margin-bottom:8px">' + t('acPickDomain') + '</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+      '<button class="btn btn-sm btn-p" onclick="acPick(\'railway\')">' + esc(AC_PING.user == null ? '—' : AC_PING.user + 'ms') + ' ▸ railway.app (' + (AC_PING.railway==null?'✗':AC_PING.railway+'ms') + ')</button>' +
+      '<button class="btn btn-sm btn-g" onclick="acPick(\'cloudflare\')">worker.dev (' + (AC_PING.worker==null?'✗':AC_PING.worker+'ms') + ') ▸ cloudflare</button>' +
+    '</div>';
+}
+
+async function acPick(which) {
+  AC_CHOSEN = which;
+  var log = $id('ac-log');
+  var results = $id('ac-results');
+  if (results) results.innerHTML = '';
+  var domWrap = document.getElementById('ac-domain-wrap');
+  if (domWrap) domWrap.style.display = 'none';
+  acLog('✓ ' + (which === 'railway' ? t('acScanningRailway') : t('acScanningCf')));
+  await acScanProvider(which);
+  acLog(t('acTcpTesting'));
+  await acTcpTest();
+  acLog(t('acSniTesting'));
+  await acSniTest();
+  acLog(t('acFinalPing'));
+  var finalPing = await acPingOne(($id('ac-domain').value || '').trim().toLowerCase());
+  acLog((($id('ac-domain').value||'').trim()) + ' → ' + (finalPing == null ? '✗' : finalPing + ' ms'));
+  acLog('✅ ' + t('acDone'));
+}
+
+async function acScanProvider(which) {
+  // Use the same IP ranges the manual scanner uses, ping from user's browser.
+  var ranges = which === 'railway' ? SCN_RW_RANGES : SCN_CF_RANGES;
+  var port = which === 'railway' ? 443 : 443;
+  var count = 60, found = [], tried = 0, loops = 0, BATCH = 32;
+  while (found.length < 10 && loops < 120 && ranges.length) {
+    loops++;
+    var batch = [];
+    for (var b=0; b<BATCH && batch.length < 40; b++)
+      batch.push(scnRandIp(ranges[Math.floor(Math.random()*ranges.length)]) + ':' + port);
+    var resMap = await scnPingBatch(batch, 1.2);
+    Object.keys(resMap).forEach(function(k){
+      tried++;
+      var r = resMap[k];
+      if (r && r.ok) found.push({ip: k.split(':')[0], port: r.port, ms: r.latency_ms});
+    });
+    found.sort(function(a,c){return a.ms - c.ms;});
+    found = found.slice(0, 10);
+    if (loops % 4 === 0) acLog('   یافته: ' + found.length + '/10 (تست ' + tried + ')');
+  }
+  found.sort(function(a,c){return a.ms - c.ms;});
+  found = found.slice(0, 10);
+  // Save top 10 (backend caps at 10) with 1-decimal ping precision.
+  try {
+    var save = await api('/api/scanner/save', {method:'POST', body:{type: which, ips: found.map(function(f){return f.ip+':'+f.port;}), replace: true, seq: (window['scnCtx'] && scnCtx[which] && scnCtx[which].seq) || 0}});
+    if (save && typeof save.seq === 'number' && window['scnCtx'] && scnCtx[which]) scnCtx[which].seq = save.seq;
+  } catch(e){}
+  found.forEach(function(f){ acLog('   💾 ' + f.ip + ':' + f.port + ' (' + (Math.round(f.ms*10)/10) + ' ms)'); });
+}
+
+async function acTcpTest() {
+  var domains = scnDomains.slice();
+  var userDom = ($id('ac-domain').value || '').trim().toLowerCase();
+  if (userDom && domains.indexOf(userDom) === -1) domains.unshift(userDom);
+  var targets = [];
+  domains.forEach(function(d){ targets.push(d + ':443'); });
+  var resMap = await scnPingBatch(targets, 3);
+  for (var i=0; i<domains.length; i++) {
+    var dom = domains[i];
+    var ip = null;
+    try { var dd = await api('/api/scanner/resolve?host=' + encodeURIComponent(dom)); if (dd.ips && dd.ips.length) ip = dd.ips[0]; } catch(e){}
+    var r = resMap[dom + ':443'];
+    var domMs = (r && r.ok) ? r.latency_ms : null;
+    var ipMs = null;
+    if (ip) { var ipr = await scnPingBatch([ip + ':443'], 3); ipMs = (ipr[ip+':443'] && ipr[ip+':443'].ok) ? ipr[ip+':443'].latency_ms : null; }
+    acLog('   🔌 ' + esc(dom) + (ip ? ' (' + ip + ')' : '') + ' → dom:' + (domMs==null?'✗':domMs+'ms') + ' ip:' + (ipMs==null?'✗':ipMs+'ms'));
+  }
+}
+
+async function acSniTest() {
+  var list = SPF_SNI_LIST.slice();
+  if (!list.length) { try { var sr = await api('/api/scanner/sni-list'); list = sr.sni_list || []; } catch(e){} }
+  if (!list.length) { acLog('   (لیست SNI خالی)'); return; }
+  var opts = $id('spf-sni-port') ? $id('spf-sni-port').value : '443';
+  var port = opts || '443';
+  var results = [];
+  for (var i=0; i<list.length; i+=8) {
+    var batch = list.slice(i, i+8);
+    var proms = batch.map(function(s){
+      return api('/api/scanner/sni-check?host=' + encodeURIComponent(s) + '&port=' + port)
+        .then(function(r){ return r; }).catch(function(){ return {ok:false}; });
+    });
+    var rs = await Promise.all(proms);
+    rs.forEach(function(r, j){
+      if (r && r.ok) results.push({sni: batch[j], ms: r.latency_ms});
+    });
+  }
+  results.sort(function(a,c){return a.ms - c.ms;});
+  var top = results.slice(0, 5);
+  try {
+    await api('/api/scanner/sni-save-results', {method:'POST', body:{results: top.map(function(x){return {sni:x.sni, latency_ms:x.ms};}), top: 5}});
+  } catch(e){}
+  top.forEach(function(x){ acLog('   ⚡ ' + esc(x.sni) + ' (' + (Math.round(x.ms*10)/10) + ' ms)'); });
+}
 
 // ═══ TUNNEL ═══
 async function loadTunnel() {
@@ -3955,79 +3890,19 @@ async function loadTunnel() {
       btn.textContent = exists ? t('tunnelInboundPath') + ': ✓' : t('tunnelCreate');
       if (exists) { btn.disabled = false; btn.textContent = t('tunnelCreate'); }
     }
-    // Reverse section
-    renderReversePane(s);
-    // Mirror compact info into the accordion inner panes
-    renderWkAccordionPanes(s);
-  } catch(e) {}
-}
-
-function renderReversePane(s) {
-  var revTab = $id('tab-reverse');
-  if (!revTab) return;
-  var ready = $id('reverse-ready');
-  if (!ready) return;
-  ready.classList.toggle('hidden', !s.worker_connected);
-  if (!s.worker_connected) return;
-  var badge = $id('rv-status-badge');
-  if (badge) badge.textContent = s.reverse_enabled ? '● فعال' : '○ غیرفعال';
-  var pingEl = $id('rv-ping');
-  if (pingEl) pingEl.textContent = s.reverse_ping_ms != null ? (s.reverse_ping_ms + ' ms') : 'unreachable';
-  var pathEl = $id('rv-path');
-  if (pathEl) pathEl.textContent = s.reverse_enabled ? (s.worker_domain + '/reverse/{uuid}') : '—';
-  var kvEl = $id('rv-kv');
-  if (kvEl) kvEl.textContent = (s.reverse_kv_title ? s.reverse_kv_title + ' · ' : '') + (s.reverse_kv_id || '—');
-  var inbEl = $id('rv-inbound');
-  if (inbEl) inbEl.textContent = s.inbound_exists ? (s.panel_domain + '/tunnel/{uuid}  ←  /reverse/{uuid}') : '—';
-  var enBtn = $id('rv-enable-btn'), disBtn = $id('rv-disable-btn');
-  if (enBtn) enBtn.classList.toggle('hidden', !!s.reverse_enabled);
-  if (disBtn) disBtn.classList.toggle('hidden', !s.reverse_enabled);
-  var logsEl = $id('rv-logs');
-  if (logsEl) {
-    logsEl.innerHTML = (s.logs || []).slice().reverse().map(function(l){
-      return '<div class="scn-item"><span class="scn-ip">' + esc(l.time.slice(11)) + '</span><span style="font-size:12px;color:var(--txt2)">' + esc(l.msg) + '</span></div>';
-    }).join('') || '<div class="scn-empty">لاگی ثبت نشده</div>';
-  }
-}
-
-function renderWkAccordionPanes(s) {
-  var tInner = $id('wkb-tunnel-inner'), rInner = $id('wkb-reverse-inner');
-  if (!tInner || !rInner) return;
-  tInner.innerHTML =
-    rowHtml(t('workerPing'), s.ping_ms != null ? (s.ping_ms + ' ms') : 'unreachable') +
-    rowHtml(t('tunnelKv'), (s.tunnel_kv_title ? s.tunnel_kv_title + ' · ' : '') + (s.tunnel_kv_id || '—')) +
-    rowHtml(t('tunnelInboundPath'), s.inbound_exists ? (esc(s.panel_domain) + '/tunnel/{uuid}') : '—') +
-    '<button class="btn btn-sm btn-p" style="width:100%;margin-top:8px" onclick="tunnelCreate()">' + (s.inbound_exists ? '✓' : esc(t('tunnelCreate'))) + '</button>';
-  rInner.innerHTML =
-    rowHtml(t('workerPing'), s.reverse_ping_ms != null ? (s.reverse_ping_ms + ' ms') : 'unreachable') +
-    rowHtml(t('tunnelInboundPath'), s.reverse_enabled ? (esc(s.worker_domain) + '/reverse/{uuid}') : '—') +
-    rowHtml(t('tunnelKv'), (s.reverse_kv_title ? s.reverse_kv_title + ' · ' : '') + (s.reverse_kv_id || '—')) +
-    '<div style="display:flex;gap:8px;margin-top:8px">' +
-      (s.reverse_enabled
-        ? '<button class="btn btn-sm btn-g" style="flex:1" onclick="reverseToggle(false)">' + esc(t('reverseDisable')) + '</button>'
-        : '<button class="btn btn-sm btn-p" style="flex:1" onclick="reverseToggle(true)">' + esc(t('reverseEnable')) + '</button>') +
-      '<a class="btn btn-sm btn-g" style="flex:1;display:flex;align-items:center;justify-content:center;text-decoration:none" onclick="switchTab(\'reverse\')" href="javascript:void(0)">' + esc(t('reverseMore')) + '</a>' +
-    '</div>';
-}
-function rowHtml(lbl, val) {
-  return '<div class="set-row"><span class="set-lbl" style="font-size:12px">' + lbl + '</span><span dir="ltr" style="font-size:11px;font-family:monospace;color:var(--txt);word-break:break-all;max-width:60%">' + val + '</span></div>';
-}
-
-async function reverseToggle(enable) {
-  try {
-    await api('/api/tunnel/reverse', {method: 'POST', body: {enabled: !!enable}});
-    toast(enable ? t('reverseOn') : t('reverseOff'), 'ok');
-  } catch(e) {
-    toast(e.message || t('toast.err'), 'err');
-  }
-  loadTunnel();
-  loadReverse();
-}
-
-async function loadReverse() {
-  try {
-    var s = await api('/api/tunnel/status');
-    renderReversePane(s);
+    // Reverse section (below tunnel info)
+    var sw = $id('tn-reverse-sw');
+    if (sw) sw.classList.toggle('on', !!s.reverse_enabled);
+    var revInfo = $id('tn-reverse-info');
+    if (revInfo) revInfo.classList.toggle('hidden', !s.reverse_enabled);
+    if (s.reverse_enabled) {
+      var rPing = $id('tn-reverse-ping');
+      if (rPing) rPing.textContent = s.reverse_ping_ms != null ? (s.reverse_ping_ms + ' ms') : 'unreachable';
+      var rPath = $id('tn-reverse-path');
+      if (rPath) rPath.textContent = s.worker_domain + '/reverse/{uuid}';
+      var rKv = $id('tn-reverse-kv');
+      if (rKv) rKv.textContent = (s.reverse_kv_title ? s.reverse_kv_title + ' · ' : '') + (s.reverse_kv_id || '—');
+    }
   } catch(e) {}
 }
 
@@ -4035,8 +3910,14 @@ async function tunnelToggleReverse(sw) {
   if (!sw) return;
   var enabling = !sw.classList.contains('on');
   sw.disabled = true;
-  await reverseToggle(enabling);
+  try {
+    await api('/api/tunnel/reverse', {method: 'POST', body: {enabled: enabling}});
+    toast(enabling ? t('reverseOn') : t('reverseOff'), 'ok');
+  } catch(e) {
+    toast(e.message || t('toast.err'), 'err');
+  }
   sw.disabled = false;
+  loadTunnel();
 }
 
 async function tunnelCreate() {
@@ -4813,131 +4694,6 @@ setTimeout(updateNeonBars, 500);
 var loginFormEl = $id('login-form');
 if (loginFormEl) {
   loginFormEl.addEventListener('submit', function(e) { e.preventDefault(); doLogin(); });
-}
-
-// ═══ NODES ═══
-async function loadNodes() {
-  try {
-    var d = await api('/api/nodes');
-    var list = $id('nd-list');
-    var badge = $id('nd-count-badge');
-    if (badge) badge.textContent = (d.nodes || []).length + ' / 10';
-    if (!list) return;
-    if (!(d.nodes || []).length) {
-      list.innerHTML = '<div class="scn-empty">هنوز نودی اضافه نشده</div>';
-      return;
-    }
-    list.innerHTML = d.nodes.map(function(n, i){
-      return '<div class="nd-card" style="animation-delay:' + (i * 0.05) + 's">' +
-        '<span class="nd-dot' + (n.online ? ' on' : '') + '"></span>' +
-        '<div class="nd-info"><div class="nd-name">' + esc(n.name || 'node') + '</div>' +
-        '<div class="nd-url">' + esc(n.url) + '</div></div>' +
-        '<button class="btn btn-sm btn-g" onclick="nodeDel(\'' + esc(n.id) + '\')">✕</button>' +
-      '</div>';
-    }).join('');
-  } catch(e) {}
-}
-async function nodeAdd() {
-  var domInp = $id('nd-domain');
-  var keyInp = $id('nd-api-key');
-  var domain = (domInp.value || '').trim().replace(/^https?:\/\//, '').replace(/\/+$/, '');
-  var key = (keyInp.value || '').trim();
-  if (!domain || !key) { toast('دامنه پنل و API Key هر دو الزامی هستند', 'warn'); return; }
-  var btn = $id('nd-add-btn');
-  btn.disabled = true;
-  try {
-    await api('/api/nodes/add', {method:'POST', body:{domain: domain, api_key: key}});
-    domInp.value = '';
-    keyInp.value = '';
-    toast(t('sourceUpdated'), 'ok');
-  } catch(e) { toast(e.message || t('toast.err'), 'err'); }
-  btn.disabled = false;
-  loadNodes();
-}
-async function nodeDel(id) {
-  if (!confirm('این نود حذف شود؟')) return;
-  var card = event && event.target && event.target.closest ? event.target.closest('.nd-card') : null;
-  if (card) card.classList.add('removing');
-  setTimeout(async function(){
-    try { await api('/api/nodes/' + id + '/remove', {method:'POST'}); toast(t('proxyDeleted'), 'ok'); }
-    catch(e){ toast(e.message || t('toast.err'), 'err'); }
-    loadNodes();
-  }, card ? 280 : 0);
-}
-
-// ═══ BOT ═══
-var BOT_INT_TIMER = null;
-function botInit() { botLoad(); }
-async function botLoad() {
-  try {
-    var s = await api('/api/bot/status');
-    botRender(s);
-  } catch(e) {}
-}
-function botRender(s) {
-  var setup = $id('bot-setup'), status = $id('bot-status');
-  if (!setup || !status) return;
-  var connected = !!s.connected;
-  setup.classList.toggle('hidden', connected);
-  status.classList.toggle('hidden', !connected);
-  if (!connected) return;
-  var st = $id('bt-state');
-  if (st) {
-    st.textContent = s.running ? '● running' : '○ idle';
-    st.className = 'badge ' + (s.running ? 'badge-g' : 'badge-r');
-  }
-  var nm = $id('bt-name'); if (nm) nm.textContent = s.bot_name || '—';
-  var ch = $id('bt-ch'); if (ch) ch.textContent = s.channel || '—';
-  var wh = $id('bt-wh'); if (wh) wh.textContent = s.webhook || '—';
-  var ivVal = $id('bt-int-val'), ivUnit = $id('bt-int-unit');
-  if (ivVal && s.interval_seconds) {
-    var sec = s.interval_seconds;
-    if (sec % 3600 === 0) { ivVal.value = sec / 3600; if (ivUnit) ivUnit.value = 'h'; }
-    else if (sec % 60 === 0) { ivVal.value = sec / 60; if (ivUnit) ivUnit.value = 'm'; }
-    else { ivVal.value = sec; if (ivUnit) ivUnit.value = 's'; }
-  }
-  var sb = $id('bt-start-btn'), xb = $id('bt-stop-btn');
-  if (sb) sb.classList.toggle('hidden', !!s.running);
-  if (xb) xb.classList.toggle('hidden', !s.running);
-  var logEl = $id('bt-log');
-  if (logEl) {
-    logEl.innerHTML = (s.log || []).slice().reverse().map(function(l){
-      return '<div class="scn-item"><span class="scn-ip">' + esc((l.time||'').slice(11)) + '</span><span style="font-size:12px;color:var(--txt2)">' + esc(l.msg) + '</span></div>';
-    }).join('') || '<div class="scn-empty">لاگی ثبت نشده</div>';
-  }
-}
-async function botConnect() {
-  var token = ($id('bt-token').value || '').trim();
-  var channel = ($id('bt-channel').value || '').trim();
-  if (!token || !channel) { toast(t('workerFillAll'), 'warn'); return; }
-  var btn = $id('bt-create-btn');
-  btn.disabled = true;
-  try {
-    await api('/api/bot/connect', {method:'POST', body:{token: token, channel: channel}});
-    toast(t('sourceUpdated'), 'ok');
-  } catch(e) { toast(e.message || t('toast.err'), 'err'); }
-  btn.disabled = false;
-  botLoad();
-}
-async function botStart() {
-  var val = parseInt($id('bt-int-val').value) || 30;
-  var unit = $id('bt-int-unit').value;
-  var sec = unit === 'h' ? val * 3600 : unit === 'm' ? val * 60 : val;
-  try {
-    await api('/api/bot/start', {method:'POST', body:{interval_seconds: sec}});
-    toast('ربات شروع شد', 'ok');
-  } catch(e) { toast(e.message || t('toast.err'), 'err'); }
-  botLoad();
-}
-async function botStop() {
-  try { await api('/api/bot/stop', {method:'POST'}); toast('ربات متوقف شد', 'ok'); }
-  catch(e) { toast(e.message || t('toast.err'), 'err'); }
-  botLoad();
-}
-async function botDisconnect() {
-  if (!confirm('اتصال ربات قطع شود؟')) return;
-  try { await api('/api/bot/disconnect', {method:'POST'}); } catch(e){}
-  botLoad();
 }
 
 </script>

@@ -12,162 +12,37 @@
       "sub_id": null,
       "protocol": "vless-ws"
     },
-    "e27ca920-3f29-496e-ad85-9b45e0ebd2bf": {
-      "label": "realitytest",
-      "limit_bytes": 0,
+    "df1bd011-d8b7-40da-89f6-c0d9d0c567e5": {
+      "label": "revtest",
+      "limit_bytes": 10737418240,
       "used_bytes": 0,
-      "created_at": "2026-08-24T02:37:33.011126",
+      "created_at": "2026-08-23T18:27:47.317575",
       "active": true,
-      "expires_at": "2026-09-23T02:37:33.011090",
-      "note": "لینک کاربر realitytest",
-      "is_default": false,
-      "sub_id": null,
-      "protocol": "reality",
-      "transport_type": "reality",
-      "xhttp_settings": {},
-      "path": "xhttp-siz10/stream-up/e27ca920-3f29-496e-ad85-9b45e0ebd2bf",
-      "user_id": "bda643d73834"
-    },
-    "11b61b22-532e-49fc-994c-d088fbff2b7d": {
-      "label": "scan-test",
-      "limit_bytes": 0,
-      "used_bytes": 0,
-      "created_at": "2026-08-24T04:33:20.356309",
-      "active": true,
-      "expires_at": "2026-09-23T04:33:20.356262",
-      "note": "لینک کاربر scan-test",
+      "expires_at": null,
+      "note": "لینک کاربر revtest",
       "is_default": false,
       "sub_id": null,
       "protocol": "vless-ws",
       "transport_type": "ws",
       "xhttp_settings": {},
-      "path": "ws/11b61b22-532e-49fc-994c-d088fbff2b7d",
-      "user_id": "86698c60cc4d"
-    },
-    "8e3b9829-f48c-4d15-926e-c4061aa296f5": {
-      "label": "node-test",
-      "limit_bytes": 0,
-      "used_bytes": 0,
-      "created_at": "2026-08-24T05:46:10.143029",
-      "active": true,
-      "expires_at": "2026-09-23T05:46:10.142987",
-      "note": "لینک کاربر node-test",
-      "is_default": false,
-      "sub_id": null,
-      "protocol": "vless-ws",
-      "transport_type": "ws",
-      "xhttp_settings": {},
-      "path": "ws/8e3b9829-f48c-4d15-926e-c4061aa296f5",
-      "user_id": "c4aeb6ec4365"
-    },
-    "6992c7dd-f786-46d0-838f-ee368ba79613": {
-      "label": "promo-test",
-      "limit_bytes": 0,
-      "used_bytes": 0,
-      "created_at": "2026-08-24T13:50:39.372706",
-      "active": true,
-      "expires_at": "2026-09-23T13:50:39.372664",
-      "note": "لینک کاربر promo-test",
-      "is_default": false,
-      "sub_id": null,
-      "protocol": "vless-ws",
-      "transport_type": "ws",
-      "xhttp_settings": {},
-      "path": "ws/6992c7dd-f786-46d0-838f-ee368ba79613",
-      "user_id": "56aa32b849cc"
-    },
-    "f6f7eda6-ffb3-44e2-8fe1-ee1180e0f411": {
-      "label": "bot_09d8b4",
-      "limit_bytes": 0,
-      "used_bytes": 0,
-      "created_at": "2026-08-24T13:53:48.015443",
-      "active": true,
-      "expires_at": "",
-      "note": "bot auto",
-      "is_default": false,
-      "sub_id": null,
-      "protocol": "vless",
-      "transport_type": "ws",
-      "path": "f6f7eda6-ffb3-44e2-8fe1-ee1180e0f411",
-      "user_id": "87230e4ce4a0"
-    },
-    "4a397193-7370-4fb7-9ce0-7298bbb4a4ee": {
-      "label": "bot_842270",
-      "limit_bytes": 0,
-      "used_bytes": 0,
-      "created_at": "2026-08-24T13:54:22.139204",
-      "active": true,
-      "expires_at": "",
-      "note": "bot auto",
-      "is_default": false,
-      "sub_id": null,
-      "protocol": "vless",
-      "transport_type": "ws",
-      "path": "4a397193-7370-4fb7-9ce0-7298bbb4a4ee",
-      "user_id": "992793436784"
-    },
-    "53ee27df-8c9b-473e-a763-91868d71f7ad": {
-      "label": "promo-test2",
-      "limit_bytes": 0,
-      "used_bytes": 0,
-      "created_at": "2026-08-24T13:59:13.100204",
-      "active": true,
-      "expires_at": "2026-09-23T13:59:13.100162",
-      "note": "لینک کاربر promo-test2",
-      "is_default": false,
-      "sub_id": null,
-      "protocol": "vless-ws",
-      "transport_type": "ws",
-      "xhttp_settings": {},
-      "path": "ws/53ee27df-8c9b-473e-a763-91868d71f7ad",
-      "user_id": "2d3c3238e96d"
-    },
-    "44f8ccee-1ae4-4f35-804e-d3ddecda8ec6": {
-      "label": "bot_a6494e",
-      "limit_bytes": 0,
-      "used_bytes": 0,
-      "created_at": "2026-08-24T14:25:49.993973",
-      "active": true,
-      "expires_at": "",
-      "note": "bot auto",
-      "is_default": false,
-      "sub_id": null,
-      "protocol": "vless",
-      "transport_type": "ws",
-      "path": "44f8ccee-1ae4-4f35-804e-d3ddecda8ec6",
-      "user_id": "0cdd1ef4e118"
-    },
-    "9052a69e-b0fc-4af7-bcfa-5d2bc63d6375": {
-      "label": "reality-v7",
-      "limit_bytes": 0,
-      "used_bytes": 0,
-      "created_at": "2026-08-24T14:53:54.797585",
-      "active": true,
-      "expires_at": "2026-09-23T14:53:54.797499",
-      "note": "لینک کاربر reality-v7",
-      "is_default": false,
-      "sub_id": null,
-      "protocol": "reality",
-      "transport_type": "reality",
-      "xhttp_settings": {},
-      "path": "xhttp-siz10/stream-up/9052a69e-b0fc-4af7-bcfa-5d2bc63d6375",
-      "user_id": "f76fccf08507"
+      "path": "ws/df1bd011-d8b7-40da-89f6-c0d9d0c567e5",
+      "user_id": "5299ff19215a"
     }
   },
   "users": {
-    "bda643d73834": {
-      "username": "realitytest",
-      "password_hash": "acbd3273fbd8574006f8c1aa194a6ebbd54a48d72322e01c6c668a29bf941a43",
+    "5299ff19215a": {
+      "username": "revtest",
+      "password_hash": "9c3e5010b46c083f36dfd7fff5f7b248de325b2acb699094a682a35b07c49dbf",
       "protocol": "vless",
-      "traffic_limit_bytes": 0,
+      "traffic_limit_bytes": 10737418240,
       "traffic_used_bytes": 0,
-      "expire_at": "2026-09-23T02:37:33.011090",
+      "expire_at": null,
       "concurrent_connections": 3,
-      "created_at": "2026-08-24T02:37:33.011119",
+      "created_at": "2026-08-23T18:27:47.317560",
       "status": "active",
       "server": "IR-Tehran-01",
-      "config_uuid": "e27ca920-3f29-496e-ad85-9b45e0ebd2bf",
-      "subscription_uuid": "M5iL46vb9pkswDrcTdiHdg",
+      "config_uuid": "df1bd011-d8b7-40da-89f6-c0d9d0c567e5",
+      "subscription_uuid": "OuGbbiW39rkd3814KK-qPA",
       "sni": "",
       "proxy_ip": "",
       "proxy_country": "",
@@ -180,228 +55,12 @@
         "railway": []
       },
       "sni_spoof_v2box": false,
-      "inbound_id": "default-reality",
+      "inbound_id": "default-tunnel",
       "inbound_ids": [
-        "default-reality"
+        "default-tunnel"
       ],
-      "path": "/xhttp-siz10/stream-up/e27ca920-3f29-496e-ad85-9b45e0ebd2bf",
-      "transport_type": "reality",
-      "telegram_secret": ""
-    },
-    "86698c60cc4d": {
-      "username": "scan-test",
-      "password_hash": "83401bddbc040d8e73ec32d821661885fc761de9be9c3dbfe4108114b7dc739d",
-      "protocol": "vless",
-      "traffic_limit_bytes": 0,
-      "traffic_used_bytes": 0,
-      "expire_at": "2026-09-23T04:33:20.356262",
-      "concurrent_connections": 3,
-      "created_at": "2026-08-24T04:33:20.356300",
-      "status": "active",
-      "server": "IR-Tehran-01",
-      "config_uuid": "11b61b22-532e-49fc-994c-d088fbff2b7d",
-      "subscription_uuid": "EoJLNmp1VKmPpq0qWgMawg",
-      "sni": "",
-      "proxy_ip": "",
-      "proxy_country": "",
-      "proxy_ips": [],
-      "proxy_countries": [],
-      "proxy_ip_enabled": false,
-      "custom_ip_type": "",
-      "custom_ip_inbounds": {
-        "cf": [],
-        "railway": []
-      },
-      "sni_spoof_v2box": false,
-      "inbound_id": "default",
-      "inbound_ids": [
-        "default"
-      ],
-      "path": "/ws/11b61b22-532e-49fc-994c-d088fbff2b7d",
+      "path": "/ws/df1bd011-d8b7-40da-89f6-c0d9d0c567e5",
       "transport_type": "ws",
-      "telegram_secret": ""
-    },
-    "c4aeb6ec4365": {
-      "username": "node-test",
-      "password_hash": "08cc09ef3d9b1e69cfca047232c00a6730d9f3f4be29cc209b4905a38d8fc8fb",
-      "protocol": "vless",
-      "traffic_limit_bytes": 0,
-      "traffic_used_bytes": 0,
-      "expire_at": "2026-09-23T05:46:10.142987",
-      "concurrent_connections": 3,
-      "created_at": "2026-08-24T05:46:10.143021",
-      "status": "active",
-      "server": "IR-Tehran-01",
-      "config_uuid": "8e3b9829-f48c-4d15-926e-c4061aa296f5",
-      "subscription_uuid": "xjakHHksS5rPkxVhSE1fbA",
-      "sni": "",
-      "proxy_ip": "",
-      "proxy_country": "",
-      "proxy_ips": [],
-      "proxy_countries": [],
-      "proxy_ip_enabled": false,
-      "custom_ip_type": "",
-      "custom_ip_inbounds": {
-        "cf": [],
-        "railway": []
-      },
-      "sni_spoof_v2box": false,
-      "inbound_id": "f8f8fe225c8c",
-      "inbound_ids": [
-        "f8f8fe225c8c"
-      ],
-      "path": "/ws/8e3b9829-f48c-4d15-926e-c4061aa296f5",
-      "transport_type": "ws",
-      "telegram_secret": ""
-    },
-    "56aa32b849cc": {
-      "username": "promo-test",
-      "password_hash": "8234038e5c82c50c553394a83b5e3b03d8df1361078336125737f6ea92097b6e",
-      "protocol": "vless",
-      "traffic_limit_bytes": 0,
-      "traffic_used_bytes": 0,
-      "expire_at": "2026-09-23T13:50:39.372664",
-      "concurrent_connections": 3,
-      "created_at": "2026-08-24T13:50:39.372697",
-      "status": "active",
-      "server": "IR-Tehran-01",
-      "config_uuid": "6992c7dd-f786-46d0-838f-ee368ba79613",
-      "subscription_uuid": "4SRKdZahMYZlpf5JB78cSg",
-      "sni": "",
-      "proxy_ip": "",
-      "proxy_country": "",
-      "proxy_ips": [],
-      "proxy_countries": [],
-      "proxy_ip_enabled": false,
-      "custom_ip_type": "",
-      "custom_ip_inbounds": {
-        "cf": [],
-        "railway": []
-      },
-      "sni_spoof_v2box": false,
-      "inbound_id": "29a1824292a9",
-      "inbound_ids": [
-        "29a1824292a9"
-      ],
-      "path": "/ws/6992c7dd-f786-46d0-838f-ee368ba79613",
-      "transport_type": "ws",
-      "telegram_secret": "356f405c3dc9fbedcb40898d576a0354"
-    },
-    "87230e4ce4a0": {
-      "user_id": "87230e4ce4a0",
-      "username": "bot_09d8b4",
-      "status": "active",
-      "created_at": "2026-08-24T13:53:48.015427",
-      "expire_at": "",
-      "traffic_limit_bytes": 0,
-      "traffic_used_bytes": 0,
-      "concurrent_connections": 0,
-      "inbound_id": "default",
-      "inbound_ids": [
-        "default"
-      ],
-      "config_uuid": "f6f7eda6-ffb3-44e2-8fe1-ee1180e0f411",
-      "note": "auto-created by channel bot",
-      "path": "/ws/f6f7eda6-ffb3-44e2-8fe1-ee1180e0f411"
-    },
-    "992793436784": {
-      "user_id": "992793436784",
-      "username": "bot_842270",
-      "status": "active",
-      "created_at": "2026-08-24T13:54:22.139190",
-      "expire_at": "",
-      "traffic_limit_bytes": 0,
-      "traffic_used_bytes": 0,
-      "concurrent_connections": 0,
-      "inbound_id": "default",
-      "inbound_ids": [
-        "default"
-      ],
-      "config_uuid": "4a397193-7370-4fb7-9ce0-7298bbb4a4ee",
-      "note": "auto-created by channel bot",
-      "path": "/ws/4a397193-7370-4fb7-9ce0-7298bbb4a4ee"
-    },
-    "2d3c3238e96d": {
-      "username": "promo-test2",
-      "password_hash": "ffd3080142e0f57a0814b3b276c56f17f54c8b13861ba7769172c870b924a238",
-      "protocol": "vless",
-      "traffic_limit_bytes": 0,
-      "traffic_used_bytes": 0,
-      "expire_at": "2026-09-23T13:59:13.100162",
-      "concurrent_connections": 3,
-      "created_at": "2026-08-24T13:59:13.100196",
-      "status": "active",
-      "server": "IR-Tehran-01",
-      "config_uuid": "53ee27df-8c9b-473e-a763-91868d71f7ad",
-      "subscription_uuid": "4RuGariRZ15asGP_mjDSGw",
-      "sni": "",
-      "proxy_ip": "",
-      "proxy_country": "",
-      "proxy_ips": [],
-      "proxy_countries": [],
-      "proxy_ip_enabled": false,
-      "custom_ip_type": "",
-      "custom_ip_inbounds": {
-        "cf": [],
-        "railway": []
-      },
-      "sni_spoof_v2box": false,
-      "inbound_id": "29a1824292a9",
-      "inbound_ids": [
-        "29a1824292a9"
-      ],
-      "path": "/ws/53ee27df-8c9b-473e-a763-91868d71f7ad",
-      "transport_type": "ws",
-      "telegram_secret": "56b229c46cff6657c96d24eef1a823c7"
-    },
-    "0cdd1ef4e118": {
-      "user_id": "0cdd1ef4e118",
-      "username": "bot_a6494e",
-      "status": "active",
-      "created_at": "2026-08-24T14:25:49.993957",
-      "expire_at": "",
-      "traffic_limit_bytes": 0,
-      "traffic_used_bytes": 0,
-      "concurrent_connections": 0,
-      "inbound_id": "default",
-      "inbound_ids": [
-        "default"
-      ],
-      "config_uuid": "44f8ccee-1ae4-4f35-804e-d3ddecda8ec6",
-      "note": "auto-created by channel bot",
-      "path": "/ws/44f8ccee-1ae4-4f35-804e-d3ddecda8ec6"
-    },
-    "f76fccf08507": {
-      "username": "reality-v7",
-      "password_hash": "f64ca42a96e74c6d7982399f62781995d3a9f6f541198c7ebaa15fff1da7d4df",
-      "protocol": "vless",
-      "traffic_limit_bytes": 0,
-      "traffic_used_bytes": 0,
-      "expire_at": "2026-09-23T14:53:54.797499",
-      "concurrent_connections": 3,
-      "created_at": "2026-08-24T14:53:54.797576",
-      "status": "active",
-      "server": "IR-Tehran-01",
-      "config_uuid": "9052a69e-b0fc-4af7-bcfa-5d2bc63d6375",
-      "subscription_uuid": "rDnZ322ACNBL2J4n4oeSXg",
-      "sni": "",
-      "proxy_ip": "",
-      "proxy_country": "",
-      "proxy_ips": [],
-      "proxy_countries": [],
-      "proxy_ip_enabled": false,
-      "custom_ip_type": "",
-      "custom_ip_inbounds": {
-        "cf": [],
-        "railway": []
-      },
-      "sni_spoof_v2box": false,
-      "inbound_id": "default-reality",
-      "inbound_ids": [
-        "default-reality"
-      ],
-      "path": "/xhttp-siz10/stream-up/9052a69e-b0fc-4af7-bcfa-5d2bc63d6375",
-      "transport_type": "reality",
       "telegram_secret": ""
     }
   },
@@ -415,11 +74,6 @@
     "live_monitoring": true,
     "auto_ip_rotation": false,
     "security_token": "jfE_q8ca761HtI1hG8sD1Q",
-    "api_key": "spk_xO7BPzbFTmcOs78uw7d9uge5UV_D-RkM",
-    "server_ip": "152.55.185.148",
-    "server_country": "The Netherlands",
-    "server_country_code": "NL",
-    "docker_dns": "8.8.8.8,8.8.4.4",
     "bg_login": "",
     "bg_dashboard": "",
     "bg_sub": "",
@@ -445,10 +99,7 @@
       "scMaxEachPostBytes": "1000000",
       "scMaxBufferedPosts": 30,
       "scStreamUpServerSecs": "20-80"
-    },
-    "bot_token": "8958139265:AAFDEK0b1puIkIpksn7l3733aFst3Ma8TQQ",
-    "bot_channel": "https://t.me/sapaceunlimitamirbot",
-    "bot_interval_seconds": 30
+    }
   },
   "groups": {},
   "inbounds": {
@@ -474,21 +125,19 @@
       "network": "xhttp",
       "security": "reality",
       "domain": "",
-      "external_domain": "spider-panel.up.railway.app",
-      "sni": "www.google.com",
-      "external_port": 443,
+      "external_domain": "",
+      "sni": "is1-ssl.mzstatic.com",
+      "external_port": "",
       "fingerprint": "chrome",
       "reality_settings": {
-        "target": "www.google.com:443",
-        "sni": "www.google.com",
-        "dest": "www.google.com:443",
-        "server_names": [
-          "www.google.com"
-        ],
-        "private_key": "GI3Ta_1dHBuTg_EKzOk8sAofJrHftixiUmgLsvHHhEM",
-        "public_key": "bZwhqUwFNqkzVwsDFsE6PVXirPhMfRJcikP3TZ_SaCM",
-        "short_id": "5a3ff5a13d",
-        "spiderx": "/"
+        "private_key": "aNltAupPveBNG1iHgfEF9x1L0piJwb2JUKO0nPjtkkQ",
+        "public_key": "scbHnDaYoQUaegFF42XxbPOkeMx1zTsghSoZIS6CQxg",
+        "short_id": "db0b13742e",
+        "spiderx": "/",
+        "dest": "is1-ssl.mzstatic.com:443",
+        "mldsa65_seed": "tVelg9Lu6SjC7zDb1bpbVJFzLtmP-jA64zOuqoalYXI",
+        "mldsa65_verify": "v5fv40kBclelt-bO946-Xx5Bb4B-cK-w88IdXziUsoYw2_ALdDmyXqPJVcZfxse8h6WCpXzxSL4A4x2qY1yLGgwHPGKlYJ06Yo27GwEYJy1H77VQA3I8w7gWhY6HIyuBnSoYVJL89OV6SwQC17Mk8Y079IKMlIa80YXHXag3VTXMFXqcX-zPepD7a8CjXW0dAEN0wiBHnaeIB1DkJBgeqmc6V8wbBtXtzU9m9FhKP6lh8xe0_ExjBHriQ1t3ENAPMPLXeYHgM5jxALLQdUBiYiS6EeaZFvIcC_Jhnol7JqQI5VeRUsKdoLbP8O2yd7u_xEVScTFsXWEEM4YzWYbRJHKdqvc3g5sfv5BmKrwTiYsGs8wK0htTxf1XHdW5d1HN0ch-8pqwq-mG29_kypHDCCx_pz5UroS0ACCd4sMh84XItilBEHsOoYYP47OS7ULdw3CEOHvOicd31RVYgViTy-xnpozfbs1XmT6bAXNwpnWOitpQ_4SilU3ym7PxG5MbXN1UOR_pa4E5EQ9z0ZacBnFUMB0iff_eoWxV7343pXLsJ2aYJz-26ev_iv_1gKDA1vZF7EL47Wmr9Tvyt9hMauFYg3qdNF6Kqy_HugJGbCaMOWo6-0vYyDAbcRlCS4Rtlx3tbjblRJYX-2m8wpLMPsZi0hoaM36qK6j41RjPhpoEEMakGOIM3uTv_JwadqudyaqgVsD4xnl12EWColO25zhI4BkwsJt1xuve5nzPaSpfKnYUwzu2xcFG708GWfwUjEmDuWMXDMPOVNu6_GXlJjEKq0Y2He3IufUL3CAUcPyuVcMTq1i6egZnlvLfzVL5e_gh3pFAj9eQzS9hjdu02ZahM4q1M5MHj-IkiQ0Ioe-7rp51F2V6l5v11B3kyyxMQeZsw9C6vn9UHFzSgJZvzkJyd5jm7NLqI_70Pb5vHtVN6rtjt7pDncuhcziEVdju-dYXfGo2e4O5ENycYxPFnxZrQU6IClAg2y8i6pIFp5_LN-jVhLI6Zrk_ktPArArnXHJSvireKDCLTE8ri6W-3XDj0ufftjqg1pUEhnJfyJkIA2RXUgeU44dfHa-YKwIgLwjEsIwbvCzTdMClopgfUwmdlaJZPlbvFcygG4U8Y3oMaPTqKi5r1r4xWpCWAbG2LWWXYO8H-4S72EInr98oZU_EMMBVz8qYf1cu5bFVc3cckPe86oUPli8C43e9dCHC-Tl03wyGxaYo88I7PbaJe4NYuGN6jUIIIBRNg6WjhJTfcmba2jVaO4v5cEUF5F_3S5kQ28VL_VKBpB8tso2ZqMIY60vtxvzNc3lA6-zIgcVJTNfYtkw7zk8Iuc-Hc-Y4rMIyy5lF1muQl3dkz94UwO75TBBYAnMBbvEmZ3paf5t_mBQ8sEQB5R8AZWYEif07AyFk3rjI10SLTifjm0Tvu9Aew_jqyYokDWJAEQlyRxvi13Nb8GcoUd5f-bvSH6hJ6fpJsB3oCUJLJB97uGt2VsoPR51SxQL7UprydAZMWczAcm22Qi3ORIeXXn1P5UQjMNsFkC_hvqTEqBMdPmBixooJAjDqfUpY-8QtElpWsGinEpooAQHMqyXfKCV0-ZnXZbMHkR2mPygOM9Hl9inrj9TolFpK4HZ-od1ikJEOPPH85CqRh7cyHiuvIJb9hPrbSoFF4OMvNB23u35tUdg_GWyVuExvTXxkRxDQ_PotOdh2mYW9RPXzoC7eAIWFPQ0HpRaUGFTrC7TbpNR9Sw5_lMkCwqJTE2Mj3qVQ8E3pPnMPVgusdjxtoeRNU33M6KR_ViUh3Ik3HydCE0AYt_T_PUnYXvFT8bYQqD15tKdOzzw1qLY_qd1X0sx7nwuWy6OpeytZUOEyA5nDXweW1bzEP-hbupFxaN7R4DtA-sJSpD8G-u8H2ERCHNhYGf_pXzyEZByNnlTQllLKz4Gzg-XD5y-0YcnVC_XNWJ1qarf4ZYNk3iL1cDXxcIXKwSvzrPwFLkC6us4a0vB4ySlh6ftSSjCbHEXW2PzVLSjhB-6tGGFPw0O7rWIHAFkXJlJ76_v068oCuXuOZ9w5eptdZ9qOtbc-uOIerGlR9J7oC0e41MVSB9FhUCFpezeAC86Qtf5fOPgourYA7qkBK6xUDjuE-FeB27Q0T48nroZrEUOyr7l5j5gUcP3HQQwpnEDpgunwpl8ey9JrtFCwlnDA1FUNV8JQ76WrxtrNqqjaW7MCFZF7_r-xMJV4OqusBGd_wQzy7mcThrP-gwv3Na9aBN7xQlmAPSMBQKHT-lsYCEt5-e8wlONEs_94t_8HowCFIcGBh5ThECiRN3DNq_pBHfVgEnEW-66wa0bFcdlsB6sf_kk2e0okRFibDFrVSSVdTsp6C-zO0tTOpa6BIE-AF5tZoT60TASX7MQ9zuMT-woobbNWfk7usbEoqzEtnIJhAjWrXGp2sR6n7devSzDuFg2o_7TyAOolsJMpmRN_b6KQq2F9XZLIVr8Hg2R7GTAWT5jiSlzV9GhahVlUskp93VqvrRi9qZKBAMr7sWLVL_j_7qpQ-tQQweunSemI9XpSTIdzu52_L1S7pW0hLu3p5hcisGLCZ671o_RS_fNOGf6slwk",
+        "sni": "is1-ssl.mzstatic.com"
       },
       "xhttp_settings": {
         "path": "/",
@@ -539,50 +188,6 @@
       "worker_domain": "spider-27a71a.qabilsaibery.workers.dev",
       "created_at": "2026-08-23T18:26:39.098280",
       "reverse_enabled": true
-    },
-    "29a1824292a9": {
-      "name": "TG-Test",
-      "protocol": "telegram",
-      "port": 44344,
-      "network": "ws",
-      "security": "tls",
-      "domain": "localhost",
-      "external_domain": "test-proxy.com",
-      "spoof_ip": "",
-      "external_port": 443,
-      "fingerprint": "chrome",
-      "reality_settings": {},
-      "xhttp_settings": {},
-      "ws_settings": {},
-      "grpc_settings": {},
-      "wireguard_settings": {},
-      "telegram_settings": {
-        "internal_port": 44344,
-        "external_port": 443,
-        "external_domain": "test-proxy.com",
-        "promotion": "https://t.me/mychannel"
-      },
-      "created_at": "2026-08-24T04:32:54.794543"
-    },
-    "f8f8fe225c8c": {
-      "name": "Node: spiderpanel-production-f45d.up.railway.app",
-      "protocol": "node",
-      "port": 8080,
-      "network": "ws",
-      "security": "tls",
-      "domain": "spiderpanel-production-f45d.up.railway.app",
-      "external_domain": "spiderpanel-production-f45d.up.railway.app",
-      "sni": "spiderpanel-production-f45d.up.railway.app",
-      "external_port": "443",
-      "fingerprint": "chrome",
-      "reality_settings": {},
-      "xhttp_settings": {},
-      "ws_settings": {
-        "path": "/ws/{uuid}"
-      },
-      "grpc_settings": {},
-      "created_at": "2026-08-24T05:03:24.857573",
-      "node_target_id": "eabbfa72"
     }
   },
   "ip_pool": [],
@@ -599,19 +204,27 @@
     "kv_namespace_id": "eefab90254fe491da1e71c4e45c83a98",
     "kv_namespace_title": "spider-27a71a-db",
     "remote_status": "online",
-    "last_heartbeat": "2026-08-24T15:37:34+03:30",
+    "last_heartbeat": "2026-08-23T18:45:12+03:30",
     "worker_users_online": 0,
     "worker_traffic_bytes": 0,
     "worker_user_count": 0,
     "proxies": {
-      "ae": {
-        "country": "United Arab Emirates",
-        "proxy": "20.174.15.226",
+      "ad": {
+        "country": "Andorra",
+        "proxy": "91.187.93.166",
         "port": 443,
         "proxies": [
-          "20.174.15.226",
-          "3.29.240.49",
-          "176.97.66.175"
+          "91.187.93.166"
+        ]
+      },
+      "ae": {
+        "country": "United Arab Emirates",
+        "proxy": "176.97.66.175",
+        "port": 443,
+        "proxies": [
+          "176.97.66.175",
+          "90.156.221.54",
+          "3.29.240.49"
         ]
       },
       "am": {
@@ -620,8 +233,8 @@
         "port": 443,
         "proxies": [
           "2.56.204.183",
-          "2.56.204.246",
-          "139.45.214.122"
+          "139.45.214.126",
+          "2.56.204.246"
         ]
       },
       "at": {
@@ -634,11 +247,11 @@
       },
       "au": {
         "country": "Australia",
-        "proxy": "207.211.153.234",
+        "proxy": "207.211.146.175",
         "port": 443,
         "proxies": [
-          "207.211.153.234",
-          "125.7.24.251",
+          "207.211.146.175",
+          "207.211.157.214",
           "207.211.148.122"
         ]
       },
@@ -656,37 +269,38 @@
         "port": 443,
         "proxies": [
           "103.159.170.124",
+          "103.115.253.253",
           "103.48.16.37"
         ]
       },
       "be": {
         "country": "Belgium",
-        "proxy": "35.241.172.224",
+        "proxy": "148.177.146.71",
         "port": 443,
         "proxies": [
-          "35.241.172.224",
           "148.177.146.71",
+          "35.241.172.224",
           "35.210.99.51"
         ]
       },
       "bg": {
         "country": "Bulgaria",
-        "proxy": "185.204.53.58",
+        "proxy": "78.128.127.93",
         "port": 443,
         "proxies": [
-          "185.204.53.58",
-          "91.215.154.48",
-          "185.205.210.144"
+          "78.128.127.93",
+          "185.205.210.83",
+          "91.215.154.48"
         ]
       },
       "br": {
         "country": "Brazil",
-        "proxy": "157.151.4.93",
+        "proxy": "64.181.188.99",
         "port": 443,
         "proxies": [
+          "64.181.188.99",
           "157.151.4.93",
-          "152.67.41.217",
-          "201.16.130.6"
+          "150.230.78.183"
         ]
       },
       "ca": {
@@ -701,12 +315,12 @@
       },
       "ch": {
         "country": "Switzerland",
-        "proxy": "176.10.125.114",
+        "proxy": "84.234.17.132",
         "port": 443,
         "proxies": [
-          "176.10.125.114",
-          "91.192.102.55",
-          "82.38.64.162"
+          "84.234.17.132",
+          "185.218.204.205",
+          "91.245.225.69"
         ]
       },
       "cl": {
@@ -749,7 +363,7 @@
         "proxies": [
           "45.151.183.22",
           "178.208.91.177",
-          "91.184.248.36"
+          "87.236.146.76"
         ]
       },
       "de": {
@@ -758,16 +372,15 @@
         "port": 443,
         "proxies": [
           "43.131.1.244",
-          "151.247.209.11",
-          "185.242.113.75"
+          "178.17.48.78",
+          "206.251.50.222"
         ]
       },
       "dk": {
         "country": "Denmark",
-        "proxy": "193.181.210.149",
+        "proxy": "193.180.211.40",
         "port": 443,
         "proxies": [
-          "193.181.210.149",
           "193.180.211.40",
           "193.180.208.234"
         ]
@@ -782,12 +395,12 @@
       },
       "ee": {
         "country": "Estonia",
-        "proxy": "46.22.211.46",
+        "proxy": "38.180.216.120",
         "port": 443,
         "proxies": [
+          "38.180.216.120",
           "46.22.211.46",
-          "5.101.180.145",
-          "38.180.216.120"
+          "5.101.180.145"
         ]
       },
       "eg": {
@@ -815,7 +428,7 @@
         "proxies": [
           "45.80.229.176",
           "185.212.149.7",
-          "195.96.156.240"
+          "2.26.23.174"
         ]
       },
       "fr": {
@@ -824,8 +437,8 @@
         "port": 443,
         "proxies": [
           "147.90.26.67",
-          "147.90.26.42",
-          "185.10.19.102"
+          "147.90.26.49",
+          "147.90.26.94"
         ]
       },
       "gb": {
@@ -840,12 +453,12 @@
       },
       "hk": {
         "country": "Hong Kong",
-        "proxy": "43.168.16.112",
+        "proxy": "103.193.172.164",
         "port": 443,
         "proxies": [
-          "43.168.16.112",
           "103.193.172.164",
-          "103.192.179.132"
+          "138.124.111.115",
+          "122.10.119.252"
         ]
       },
       "hu": {
@@ -860,11 +473,11 @@
       },
       "id": {
         "country": "Indonesia",
-        "proxy": "43.169.19.179",
+        "proxy": "43.169.18.179",
         "port": 443,
         "proxies": [
-          "43.169.19.179",
-          "43.169.18.179"
+          "43.169.18.179",
+          "43.169.19.179"
         ]
       },
       "ie": {
@@ -873,8 +486,8 @@
         "port": 443,
         "proxies": [
           "54.77.206.41",
-          "54.247.36.82",
-          "54.216.143.197"
+          "54.216.143.197",
+          "54.247.36.82"
         ]
       },
       "il": {
@@ -883,7 +496,6 @@
         "port": 443,
         "proxies": [
           "185.239.48.237",
-          "82.166.137.24",
           "129.159.148.76"
         ]
       },
@@ -913,8 +525,8 @@
         "port": 443,
         "proxies": [
           "5.249.148.85",
-          "195.231.38.220",
-          "80.211.170.53"
+          "80.211.238.61",
+          "195.231.38.220"
         ]
       },
       "jp": {
@@ -923,8 +535,8 @@
         "port": 443,
         "proxies": [
           "198.13.43.34",
-          "109.107.140.90",
-          "153.121.45.101"
+          "153.121.32.71",
+          "137.220.225.56"
         ]
       },
       "kg": {
@@ -943,7 +555,7 @@
         "proxies": [
           "45.93.31.34",
           "158.180.77.154",
-          "43.128.135.99"
+          "141.164.37.50"
         ]
       },
       "kz": {
@@ -958,22 +570,22 @@
       },
       "lt": {
         "country": "Lithuania",
-        "proxy": "5.199.173.195",
+        "proxy": "5.199.162.130",
         "port": 443,
         "proxies": [
-          "5.199.173.195",
           "5.199.162.130",
-          "89.40.15.168"
+          "5.199.173.195",
+          "195.181.244.107"
         ]
       },
       "lv": {
         "country": "Latvia",
-        "proxy": "213.155.12.173",
+        "proxy": "31.58.77.150",
         "port": 443,
         "proxies": [
+          "31.58.77.150",
           "213.155.12.173",
-          "188.253.23.155",
-          "193.68.89.220"
+          "188.253.23.155"
         ]
       },
       "md": {
@@ -987,11 +599,11 @@
       },
       "mu": {
         "country": "Mauritius",
-        "proxy": "41.76.42.118",
+        "proxy": "41.76.42.116",
         "port": 443,
         "proxies": [
-          "41.76.42.118",
-          "41.76.42.116"
+          "41.76.42.116",
+          "41.76.42.118"
         ]
       },
       "mx": {
@@ -1013,12 +625,12 @@
       },
       "nl": {
         "country": "Netherlands",
-        "proxy": "144.124.241.129",
+        "proxy": "46.17.102.250",
         "port": 443,
         "proxies": [
-          "144.124.241.129",
           "46.17.102.250",
-          "23.168.72.250"
+          "23.168.72.250",
+          "2.26.83.250"
         ]
       },
       "ph": {
@@ -1027,17 +639,18 @@
         "port": 443,
         "proxies": [
           "61.245.10.8",
+          "38.54.81.111",
           "122.2.198.74"
         ]
       },
       "pl": {
         "country": "Poland",
-        "proxy": "212.119.43.76",
+        "proxy": "139.28.97.231",
         "port": 443,
         "proxies": [
+          "139.28.97.231",
           "212.119.43.76",
-          "45.43.137.179",
-          "82.40.38.216"
+          "91.108.237.23"
         ]
       },
       "ro": {
@@ -1060,38 +673,39 @@
       },
       "ru": {
         "country": "Russia",
-        "proxy": "45.8.249.237",
+        "proxy": "91.107.64.160",
         "port": 443,
         "proxies": [
-          "45.8.249.237",
-          "45.141.102.169",
-          "192.144.57.214"
+          "91.107.64.160",
+          "45.153.71.149",
+          "31.76.230.241"
         ]
       },
       "sa": {
         "country": "Saudi Arabia",
-        "proxy": "158.101.242.224",
+        "proxy": "80.225.64.251",
         "port": 443,
         "proxies": [
+          "80.225.64.251",
           "158.101.242.224"
         ]
       },
       "se": {
         "country": "Sweden",
-        "proxy": "142.111.244.5",
+        "proxy": "89.127.201.202",
         "port": 443,
         "proxies": [
+          "89.127.201.202",
           "142.111.244.5",
-          "62.60.250.39",
-          "130.49.190.27"
+          "62.60.250.39"
         ]
       },
       "sg": {
         "country": "Singapore",
-        "proxy": "164.52.2.99",
+        "proxy": "164.52.2.100",
         "port": 443,
         "proxies": [
-          "164.52.2.99",
+          "164.52.2.100",
           "164.52.2.98",
           "43.156.116.194"
         ]
@@ -1114,12 +728,12 @@
       },
       "tr": {
         "country": "Turkey",
-        "proxy": "141.98.118.80",
+        "proxy": "77.92.145.164",
         "port": 443,
         "proxies": [
-          "141.98.118.80",
-          "185.219.132.27",
-          "77.92.145.164"
+          "77.92.145.164",
+          "138.124.107.35",
+          "185.219.132.27"
         ]
       },
       "tw": {
@@ -1136,17 +750,18 @@
         "port": 443,
         "proxies": [
           "91.218.212.223",
+          "31.222.235.81",
           "31.41.221.121"
         ]
       },
       "us": {
         "country": "United States",
-        "proxy": "147.75.230.207",
+        "proxy": "147.75.230.33",
         "port": 443,
         "proxies": [
+          "147.75.230.33",
           "147.75.230.207",
-          "147.75.230.160",
-          "147.75.230.33"
+          "147.75.230.160"
         ]
       },
       "uz": {
@@ -1177,11 +792,11 @@
       }
     },
     "last_sync": "2026-08-23T18:46:49+03:30",
-    "last_error": "Authentication error",
+    "last_error": "",
     "source_url": "https://raw.githubusercontent.com/NiREvil/vless/main/sub/ProxyIP-Daily.md",
     "auto_sync": true,
-    "sync_error": "Authentication error",
-    "sync_count": 573,
+    "sync_error": "",
+    "sync_count": 32,
     "tunnel_kv_namespace_id": "f1e6c98da53e4e80ad9907aef5931bef",
     "tunnel_kv_namespace_title": "spider-27a71a-db-tunnel",
     "tunnel_enabled": true,
@@ -1214,54 +829,6 @@
       {
         "msg": "Worker با REVERSE_KV deploy شد",
         "time": "2026-08-23T18:26:42+03:30"
-      },
-      {
-        "msg": "Reverse KV آماده شد: spider-27a71a-db-reverse",
-        "time": "2026-08-24T13:46:16+03:30"
-      },
-      {
-        "msg": "Reverse فعال شد — دامنه spider-27a71a.qabilsaibery.workers.dev با مسیر /reverse/{uuid}",
-        "time": "2026-08-24T13:46:18+03:30"
-      },
-      {
-        "msg": "deploy ناموفق: 401",
-        "time": "2026-08-24T13:46:18+03:30"
-      },
-      {
-        "msg": "Reverse KV آماده شد: spider-27a71a-db-reverse",
-        "time": "2026-08-24T13:58:54+03:30"
-      },
-      {
-        "msg": "Reverse فعال شد — دامنه spider-27a71a.qabilsaibery.workers.dev با مسیر /reverse/{uuid}",
-        "time": "2026-08-24T13:58:57+03:30"
-      },
-      {
-        "msg": "deploy ناموفق: 401",
-        "time": "2026-08-24T13:58:57+03:30"
-      },
-      {
-        "msg": "Reverse KV آماده شد: spider-27a71a-db-reverse",
-        "time": "2026-08-24T14:15:12+03:30"
-      },
-      {
-        "msg": "Reverse فعال شد — دامنه spider-27a71a.qabilsaibery.workers.dev با مسیر /reverse/{uuid}",
-        "time": "2026-08-24T14:15:14+03:30"
-      },
-      {
-        "msg": "deploy ناموفق: 401",
-        "time": "2026-08-24T14:15:14+03:30"
-      },
-      {
-        "msg": "Reverse KV آماده شد: spider-27a71a-db-reverse",
-        "time": "2026-08-24T14:40:15+03:30"
-      },
-      {
-        "msg": "Reverse فعال شد — دامنه spider-27a71a.qabilsaibery.workers.dev با مسیر /reverse/{uuid}",
-        "time": "2026-08-24T14:40:17+03:30"
-      },
-      {
-        "msg": "deploy ناموفق: 401",
-        "time": "2026-08-24T14:40:17+03:30"
       }
     ],
     "reverse_kv_namespace_id": "2e70ae2fc6244dd99f362dbae985fb8f",
@@ -1269,21 +836,5 @@
   },
   "password_hash": "fcb3149c23e642e467520646d99c50a045d0a5908fda6468b74fab1e851a08fa",
   "saved_secret": "spider-panel-secret-key-v2",
-  "saved_at": "2026-08-24T15:40:05.942707",
-  "nodes": {
-    "eabbfa72": {
-      "id": "eabbfa72",
-      "url": "https://spiderpanel-production-f45d.up.railway.app",
-      "key": "spk_8b0ho-A4UWuYYoGpmU2Dp-do9P14Z832",
-      "name": "spiderpanel-production-f45d.up.railway.app",
-      "added_at": "2026-08-24T05:03:24+03:30"
-    },
-    "105e86e6": {
-      "id": "105e86e6",
-      "url": "https://spider-9qpg-production.up.railway.app",
-      "key": "spk_TbXbbGwwvvnW4LKN0d8UZOltcRCtCNae",
-      "name": "spider-9qpg-production.up.railway.app",
-      "added_at": "2026-08-24T05:05:40+03:30"
-    }
-  }
+  "saved_at": "2026-08-23T18:46:49.995248"
 }

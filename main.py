@@ -52,24 +52,8 @@ IRAN_TZ = ZoneInfo("Asia/Tehran")
 
 app = FastAPI(title="Spider Gateway", docs_url=None, redoc_url=None)
 
-from fastapi.exceptions import RequestValidationError
-from starlette.exceptions import HTTPException as StarletteHTTPException
-
-@app.exception_handler(Exception)
-async def generic_exception_handler(request, exc):
-    import logging
-    logging.getLogger(__name__).error("Unhandled error: %s", exc, exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={"ok": False, "detail": str(exc)[:200]},
-    )
-
-@app.exception_handler(StarletteHTTPException)
-async def http_exception_handler(request, exc):
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"ok": False, "detail": str(exc.detail)},
-    )
+# Import and include xhttp_siz10 router - deferred until globals are defined
+xhttp_router = None
 
 CONFIG = {
     # The panel must always listen on 8080 (the user's VPN clients and any
@@ -171,7 +155,7 @@ def _save_scanned_ips(ctype: str, entries: list, replace: bool = False) -> list:
     return merged
 
 async def load_state():
-    global LINKS, AUTH, SUBS, USERS, SETTINGS, GROUPS, IP_POOL, IP_BLACKLIST, INBOUNDS, NODES
+    global LINKS, AUTH, SUBS, USERS, SETTINGS, GROUPS, IP_POOL, IP_BLACKLIST, INBOUNDS
     try:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         if DATA_FILE.exists():
@@ -201,9 +185,7 @@ async def load_state():
                 WORKER.update(data["worker"])
                 if was_connected:
                     WORKER["connected"] = True
-            if isinstance(data.get("nodes"), dict):
-                NODES.update(data["nodes"])
-            logger.info(f"State loaded: {len(LINKS)} links, {len(SUBS)} subs, {len(USERS)} users, {len(GROUPS)} groups, {len(IP_POOL)} ips, {len(INBOUNDS)} inbounds, {len(NODES)} nodes")
+            logger.info(f"State loaded: {len(LINKS)} links, {len(SUBS)} subs, {len(USERS)} users, {len(GROUPS)} groups, {len(IP_POOL)} ips, {len(INBOUNDS)} inbounds")
     except Exception as e:
         logger.warning(f"Could not load state: {e}")
     # Rebuild path index from all users and links
@@ -329,7 +311,6 @@ async def save_state():
                 "password_hash": AUTH["password_hash"],
                 "saved_secret": CONFIG["secret"],
                 "saved_at": datetime.now().isoformat(),
-                "nodes": dict(NODES),
             }
             tmp = DATA_FILE.with_suffix(".tmp")
             async with aiofiles.open(tmp, "w", encoding="utf-8") as f:
@@ -369,11 +350,6 @@ SETTINGS = {
     "live_monitoring": True,
     "auto_ip_rotation": False,
     "security_token": secrets.token_urlsafe(16),
-    "api_key": "",                      # external control (X-API-Key header)
-    "server_ip": "",                    # detected at deploy/startup
-    "server_country": "",
-    "server_country_code": "",
-    "docker_dns": "8.8.8.8,8.8.4.4",
     # Custom backgrounds (uploaded by admin)
     "bg_login": "",
     "bg_dashboard": "",
@@ -529,31 +505,10 @@ async def destroy_session(token: str | None):
         SESSIONS.pop(token, None)
 
 async def require_auth(request: Request):
-    # External control: a valid X-API-Key header authenticates without a
-    # session cookie (panel-to-panel / Node / bot integrations).
-    api_key = request.headers.get("x-api-key") or request.headers.get("X-API-Key") or ""
-    if api_key and SETTINGS.get("api_key") and secrets.compare_digest(api_key, str(SETTINGS["api_key"])):
-        return "api-key"
     token = request.cookies.get(SESSION_COOKIE)
     if not await is_valid_session(token):
         raise HTTPException(status_code=401, detail="unauthorized")
     return token
-
-
-def _ensure_api_key() -> str:
-    key = str(SETTINGS.get("api_key") or "")
-    if not key:
-        key = "spk_" + secrets.token_urlsafe(24)
-        SETTINGS["api_key"] = key
-        asyncio.create_task(save_state())
-    return key
-
-
-def _rotate_api_key() -> str:
-    key = "spk_" + secrets.token_urlsafe(24)
-    SETTINGS["api_key"] = key
-    asyncio.create_task(save_state())
-    return key
 
 # ── Reality + Xray helpers ─────────────────────────────────────────────────────
 def _gen_ml_dsa65(seed: bytes) -> str:
@@ -612,9 +567,7 @@ def _gen_reality_settings() -> dict:
             "public_key": pub,
             "short_id": secrets.token_hex(5)[:10],
             "spiderx": "/",
-            "sni": "is1-ssl.mzstatic.com",
             "dest": "is1-ssl.mzstatic.com:443",
-            "target": "is1-ssl.mzstatic.com:443",
             "mldsa65_seed": seed,
             "mldsa65_verify": verify,
         }
@@ -628,18 +581,14 @@ def _gen_reality_settings() -> dict:
             "public_key": pub_key,
             "short_id": secrets.token_hex(5)[:10],
             "spiderx": "/",
-            "sni": "is1-ssl.mzstatic.com",
             "dest": "is1-ssl.mzstatic.com:443",
-            "target": "is1-ssl.mzstatic.com:443",
             "mldsa65_seed": b64.b64encode(mldsa_seed).decode(),
             "mldsa65_verify": _gen_ml_dsa65(mldsa_seed),
         }
     except ImportError:
         return {
             "private_key": "", "public_key": "", "short_id": "5a3ff5a13d",
-            "spiderx": "/", "sni": "is1-ssl.mzstatic.com",
-            "dest": "is1-ssl.mzstatic.com:443",
-            "target": "is1-ssl.mzstatic.com:443",
+            "spiderx": "/", "dest": "is1-ssl.mzstatic.com:443",
             "mldsa65_seed": b64.b64encode(mldsa_seed).decode(),
             "mldsa65_verify": _gen_ml_dsa65(mldsa_seed),
         }
@@ -1077,14 +1026,9 @@ def generate_telegram_proxy_link(user_id: str, user: dict, inbound: dict, remark
     # Use stored secret or derive a stable one
     secret = user.get("telegram_secret") or derive_secret_from_uuid(config_uuid)
 
-    # Optional promotion channel link appended to the proxy link (shown by TG)
-    promotion = str(tg.get("promotion") or inbound.get("promotion") or "").strip()
-    if promotion:
-        # Append as a separate query param `promo=` so the proxy link stays valid
-        promo_val = promotion.lstrip("?&").split("&")[0]
-        link = f"https://t.me/proxy?server={external_domain}&port={external_port}&secret={secret}&promo={quote(promo_val, safe='')}"
-    else:
-        link = f"https://t.me/proxy?server={external_domain}&port={external_port}&secret={secret}"
+    # Note: Telegram t.me/proxy links don't support #remark fragment like VLESS links
+    # The name is set by the user in the Telegram app after adding the proxy
+    link = f"https://t.me/proxy?server={external_domain}&port={external_port}&secret={secret}"
     return link
 
 
@@ -1405,25 +1349,6 @@ async def startup():
     # Start Telegram Proxy instances for all existing TG inbounds
     await _start_all_telegram_proxies()
 
-    # Detect server public IP on startup (non-blocking; used by configs + node system)
-    asyncio.create_task(_detect_server_identity())
-
-    # Restore channel bot state (does NOT auto-start the loop)
-    asyncio.create_task(_restore_bot())
-
-    # Docker DNS override (8.8.8.8, 8.8.4.4) if enabled
-    docker_dns = SETTINGS.get("docker_dns")
-    if docker_dns and _os.path.exists("/etc/resolv.conf"):
-        try:
-            with open("/etc/resolv.conf", "r") as f:
-                current = f.read()
-            if "8.8.8.8" not in current:
-                with open("/etc/resolv.conf", "w") as f:
-                    f.write("nameserver 8.8.8.8\nnameserver 8.8.4.4\n")
-                logger.info("Docker DNS override applied: 8.8.8.8, 8.8.4.4")
-        except Exception as e:
-            logger.warning(f"Could not write Docker DNS: {e}")
-
 
 # ── Telegram Proxy Lifecycle ────────────────────────────────────────────────
 async def _start_all_telegram_proxies():
@@ -1459,13 +1384,10 @@ async def _start_telegram_proxy(inbound_id: str, inbound: dict):
     except Exception:
         ext_port = 0
     ext_domain = str(tg.get("external_domain") or inbound.get("external_domain") or "").strip()
-    # Preserve promotion if already present
-    promo = tg.get("promotion") or ""
     inbound["telegram_settings"] = {
         "internal_port": int_port,
         "external_port": ext_port,
         "external_domain": ext_domain,
-        "promotion": promo,
     }
     inbound["port"] = int_port
     inbound["external_port"] = ext_port
@@ -1773,12 +1695,12 @@ def generate_user_config(user_id: str, user: dict, inbound_id: str = None, addr:
     """Build a VLESS config string for one inbound of a user.
 
     Three config families (one per inbound type):
-      - Reality  -> served by Xray core (address/host/port/pbk/sid come from the
+      - Reality  → served by Xray core (address/host/port/pbk/sid come from the
                    inbound's reality settings + external domain/port)
-      - TLS WS/XHTTP -> served by the FastAPI relay; address/host/sni = the
+      - TLS WS/XHTTP → served by the FastAPI relay; address/host/sni = the
                    panel's main domain, port 443. ws is the default transport,
                    xhttp is selectable per inbound.
-      - Worker   -> served by the Cloudflare Worker; address/host/sni = worker
+      - Worker   → served by the Cloudflare Worker; address/host/sni = worker
                    domain, path /route/{country-code} (see _worker_configs).
 
     addr (scanned custom IP) overrides only the connect address; host/sni stay
@@ -1835,7 +1757,7 @@ def generate_user_config(user_id: str, user: dict, inbound_id: str = None, addr:
         ext_port = str(inbound.get("external_port") or "").strip()
         if not ext_domain or not ext_port:
             return ""
-        rs = inbound.get("reality_settings") or SETTINGS.get("reality") or SETTINGS.get("reality") or {}
+        rs = inbound.get("reality_settings") or SETTINGS.get("reality") or {}
         gs = SETTINGS.get("reality") or {}
         # Use the private key from inbound, derive public key from it (this is the ONLY
         # public key that works with Xray — Xray derives it from the same private key).
@@ -1844,9 +1766,7 @@ def generate_user_config(user_id: str, user: dict, inbound_id: str = None, addr:
         sid = rs.get("short_id") or gs.get("short_id") or ""
         spx = rs.get("spiderx") or gs.get("spiderx") or "/"
         fp = inbound.get("fingerprint") or rs.get("fingerprint") or gs.get("fingerprint") or "chrome"
-        # SNI and Target are now SEPARATE fields (Target = real backend dest, SNI = TLS SNI)
         sni = inbound.get("sni") or rs.get("sni") or gs.get("sni") or "is1-ssl.mzstatic.com"
-        target = rs.get("target") or rs.get("dest") or gs.get("target") or gs.get("dest") or (sni + ":443")
         xs = inbound.get("xhttp_settings") or {}
         # For Reality XHTTP, path should be "/" (as per requirement)
         rpath = str(xs.get("path") or "/")
@@ -1871,50 +1791,22 @@ def generate_user_config(user_id: str, user: dict, inbound_id: str = None, addr:
                 xmod = "stream-up"
             xsc = xs.get("scMaxEachPostBytes", "1000000")
             extra = quote('{{"xPaddingBytes":"{}","mode":"{}","scMaxEachPostBytes":"{}"}}'.format(xpb, xmod, xsc), safe='')
+            # Use dest and server_names from reality_settings if provided
+            rs_sni = rs.get("sni") or sni
+            rs_dest = rs.get("dest") or (rs_sni + ":443")
+            rs_server_names = rs.get("server_names") or [rs_sni]
+            server_names_q = quote(",".join(rs_server_names), safe="")
             params = (f"encryption=none&security=reality"
                       f"&sni={quote(sni)}&fp={fp}"
                       f"&pbk={pbk}&sid={sid}&spx={spx}"
-                      f"&type=xhttp&path={rpath}&mode={xmod}&extra={extra}")
+                      f"&type=xhttp&path={rpath}&mode={xmod}&extra={extra}"
+                      f"&dest={quote(rs_dest)}"
+                      f"&serverName={server_names_q}")
         return f"vless://{config_uuid}@{host}:{port}?{params}#{remark}"
 
     # ── TLS (WS default / XHTTP selectable) — served by the FastAPI relay ──
     # address/host/sni always = the panel main domain; port 443 (Railway TLS).
     panel_domain = _safe_host(SETTINGS.get("domain"), get_host())
-
-    # Node inbounds: addressed to the remote node's panel domain with this
-    # server's country flag in the remark (spider-{flag}-{name}).
-    if proto == "node":
-        node_tid = inbound.get("node_target_id") if inbound else None
-        node_flag = ""
-        if node_tid and node_tid in NODES:
-            node_info = NODES[node_tid]
-            ncode = str(node_info.get("country_code") or "").upper()
-            node_flag = _COUNTRY_FLAG.get(ncode, "") if ncode else ""
-        ndom = str((inbound.get("domain") or "")).strip() or panel_domain
-        remark = quote(f"Spider-{node_flag} {username}".strip())
-        node_host = addr_ip or ndom
-        node_port = addr_port or "443"
-        transport = (user.get("transport_type") or "").lower() or (inbound.get("network") if inbound else "") or "ws"
-        if transport not in ("ws", "xhttp"):
-            transport = "ws"
-        if transport == "xhttp":
-            xs = inbound.get("xhttp_settings") if inbound else {}
-            xpb = xs.get("xPaddingBytes", "100-1000")
-            xmod = str(xs.get("mode", "auto")).strip().lower()
-            if xmod not in ("packet-up", "stream-up"):
-                xmod = "stream-up"
-            xsc = xs.get("scMaxEachPostBytes", "1000000")
-            extra = quote('{{"xPaddingBytes":"{}","mode":"{}","scMaxEachPostBytes":"{}"}}'.format(xpb, xmod, xsc), safe='')
-            xpath = f"/xhttp-siz10/{xmod}/{config_uuid}"
-            params = (f"encryption=none&security=tls&type=xhttp"
-                      f"&host={quote(node_host)}&path={quote(xpath, safe='')}&sni={quote(node_host)}"
-                      f"&fp=chrome&alpn=h2,http/1.1&mode={xmod}&extra={extra}")
-        else:
-            ws_path = f"/ws/{config_uuid}"
-            params = (f"encryption=none&security=tls&type=ws"
-                      f"&host={quote(node_host)}&path={quote(ws_path, safe='')}&sni={quote(node_host)}"
-                      f"&fp=chrome&alpn=http/1.1")
-        return f"vless://{config_uuid}@{node_host}:{node_port}?{params}#{remark}"
 
     # ── TUNNEL (user → Railway → CF Worker → site) — path /tunnel/{uuid} ──
     if proto == "tunnel":
@@ -2331,8 +2223,7 @@ async def ensure_default_link():
 # ── Basic endpoints ───────────────────────────────────────────────────────────
 @app.get("/")
 async def root():
-    from fastapi.responses import RedirectResponse
-    return RedirectResponse(url="/spider")
+    return {"service": "Spider Gateway", "version": "9.2", "status": "active", "channel": "https://t.me/spider_vpn1"}
 
 # ── Subscription ping (must be before /sub/{{identifier}}) ──────────────────
 @app.get("/sub/{identifier}/ping")
@@ -2443,160 +2334,6 @@ async def subscription_handler(identifier: str, request: Request):
                 return FileResponse(_os.path.join(_STATIC_DIR, "sub.html"))
 
     raise HTTPException(status_code=404, detail="not found")
-
-
-@app.get("/subs/{uuid_key}")
-async def sub_categorized(uuid_key: str, request: Request):
-    """Graphical subscription page — serves sub.html for a valid UUID.
-
-    The page itself fetches its data from /api/public/sub/{uuid}.
-    Text (base64) subscriptions remain at /sub/{uuid}.
-    """
-    # Validate the UUID belongs to a user or an active link; otherwise 404.
-    found = False
-    async with USERS_LOCK:
-        for u in USERS.values():
-            if u.get("config_uuid") == uuid_key:
-                found = True
-                break
-    if not found:
-        async with LINKS_LOCK:
-            link = LINKS.get(uuid_key)
-        if link and is_link_allowed(link):
-            found = True
-    if not found:
-        raise HTTPException(status_code=404, detail="not found")
-    return FileResponse(_os.path.join(_STATIC_DIR, "sub.html"))
-
-    if _user_uses_worker_inbound(target_user):
-        target_user = await _worker_pull_user(target_uid, target_user)
-        USERS[target_uid] = target_user
-
-    host = SETTINGS.get("domain") or get_host()
-    username = target_user.get("username", target_uid)
-
-    # ── Categorize configs ───────────────────────────────────────────────
-    tunnel_configs = []   # worker + tunnel + reverse + reality + local TLS
-    node_configs = []     # node inbound (uuid-synced)
-
-    configs = list(target_user.get("worker_configs") or [])
-    inbound_ids = target_user.get("inbound_ids") or []
-    stored_path_user = (target_user.get("path") or "").strip()
-
-    for iid_ in inbound_ids:
-        ib = INBOUNDS.get(iid_)
-        try:
-            _p = (ib.get("protocol") if ib else "").lower()
-            _s = (ib.get("security") if ib else "").lower()
-            if ib and (_p == "reality" or _s == "reality"):
-                if not str(ib.get("external_domain") or "").strip() or not str(ib.get("external_port") or "").strip():
-                    continue
-            if ib and _p == "worker":
-                if not target_user.get("worker_configs"):
-                    configs.extend(_worker_configs(target_uid, target_user, ib, stored_path_user, f"Spider-{username}"))
-            elif ib and _p == "node":
-                cfg = generate_user_config(target_uid, target_user, iid_)
-                if cfg:
-                    node_configs.append({"inbound": ib.get("name", iid_), "config": cfg})
-            else:
-                cfg = generate_user_config(target_uid, target_user, iid_)
-                if cfg:
-                    tunnel_configs.append({"inbound": ib.get("name", iid_) if ib else iid_, "config": cfg})
-        except Exception:
-            continue
-
-    # Worker configs go into tunnel section
-    for wc in (target_user.get("worker_configs") or []):
-        tunnel_configs.append({"inbound": "Worker VLESS", "config": wc})
-
-    if not configs and not node_configs:
-        fallback_config = generate_user_config(target_uid, target_user, target_user.get("inbound_id"))
-        if fallback_config:
-            tunnel_configs.append({"inbound": "Default", "config": fallback_config})
-
-    # Custom scanned-IP configs
-    custom_cfgs = generate_custom_ip_configs(target_uid, target_user)
-    for cfg in custom_cfgs.get("railway", []) + custom_cfgs.get("cf", []):
-        tunnel_configs.append({"inbound": "Scanned IP", "config": cfg})
-
-    # Sni Spoof configs
-    if target_user.get("sni_spoof_v2box"):
-        for cfg in generate_sni_spoof_configs(target_uid, target_user):
-            tunnel_configs.append({"inbound": "SNI Spoof", "config": cfg})
-
-    if not tunnel_configs and not node_configs:
-        raise HTTPException(status_code=404, detail="no configs found")
-
-    return {
-        "ok": True,
-        "uuid": uuid_key,
-        "username": username,
-        "tunnel_section": tunnel_configs,
-        "node_section": node_configs,
-        "support_url": "https://t.me/spider_vpn1",
-    }
-
-
-@app.get("/api/public/self-config")
-async def public_self_config(request: Request, uuid: str = "", source: str = ""):
-    """Self-config scanner for the /subs/{uuid} page ("ساخت کانفیگ خودتان").
-
-    Scans Railway IPs when the panel domain is railway.app, Cloudflare IPs
-    otherwise — or the requested ?source= explicitly. Returns at most TWO fresh
-    'yours' configs built from healthy IPs. TLS WS only: reality/xhttp/
-    wireguard/telegram/worker/node inbounds are skipped. Session-only.
-    """
-    host = str(SETTINGS.get("domain") or request.headers.get("host") or "")
-    is_railway_host = "railway.app" in host
-
-    async with USERS_LOCK:
-        target_user = None
-        target_uid = None
-        for uid, u in USERS.items():
-            if u.get("config_uuid") == uuid:
-                target_user = dict(u)
-                target_uid = uid
-                break
-
-    if not target_user:
-        return {"ok": False, "detail": "user not found", "configs": []}
-
-    src = (source or ("railway" if is_railway_host else "cf")).lower()
-    if src not in ("cf", "railway"):
-        src = "cf"
-    scanned_ips = _read_scanned_ips(src)[:2]
-    label = "Railway" if src == "railway" else "Cloudflare"
-    if not scanned_ips:
-        return {"ok": True, "source": label, "configs": [],
-                "detail": f"no scanned {label} IPs available"}
-
-    configs = []
-    inbound_ids = [i for i in (target_user.get("inbound_ids") or []) if i]
-    seen_iids = set()
-    for iid_ in inbound_ids:
-        ib = INBOUNDS.get(iid_)
-        if not ib or iid_ in seen_iids:
-            continue
-        seen_iids.add(iid_)
-        _p = (ib.get("protocol") or "").lower()
-        _s = (ib.get("security") or "").lower()
-        # TLS WS only — skip reality/xhttp/wireguard/telegram/worker/node
-        if _p in ("reality", "worker", "node", "wireguard", "telegram"):
-            continue
-        if _s == "reality" or (ib.get("network") or "") == "xhttp":
-            continue
-
-        for ip_entry in scanned_ips[:2]:
-            ip = str(ip_entry).split(":")[0]
-            cfg = generate_user_config(target_uid, target_user, iid_, addr=ip)
-            if cfg:
-                base = cfg.split("#")[0]
-                uname = target_user.get("username", target_uid)
-                remark = quote(f"Spider-{uname} Yours ({label})")
-                configs.append(f"{base}#{remark}")
-
-    return {"ok": True, "source": label, "configs": configs}
-
 
 @app.get("/sub-all")
 async def subscription_all(_=Depends(require_auth)):
@@ -3221,7 +2958,7 @@ async def create_inbound(request: Request, _=Depends(require_auth)):
     body = await request.json()
     name = (body.get("name") or "اینباند جدید").strip()[:60]
     protocol = str(body.get("protocol") or "vless").lower()
-    if protocol not in ("vless", "vmess", "trojan", "reality", "worker", "wireguard", "telegram", "node"):
+    if protocol not in ("vless", "vmess", "trojan", "reality", "worker", "wireguard", "telegram"):
         raise HTTPException(status_code=400, detail="Invalid protocol")
     network = str(body.get("network") or "ws").lower()
     security = str(body.get("security") or "tls").lower()
@@ -3243,27 +2980,6 @@ async def create_inbound(request: Request, _=Depends(require_auth)):
         external_domain = wdom
         sni = wdom
 
-    # A "node" inbound links to a remote panel's VLESS+WS inbound. Non-editable:
-    # users created on it get the same UUID synced across all connected nodes.
-    if protocol == "node":
-        node_id = str(body.get("node_id") or "").strip()
-        if not node_id:
-            raise HTTPException(status_code=400, detail="node_id الزامی است")
-        async with NODES_LOCK:
-            node = NODES.get(node_id)
-        if not node:
-            raise HTTPException(status_code=404, detail="نود پیدا نشد")
-        # Pull the VLESS+WS inbound info from the remote node
-        ok, sc, d = await _node_request(node, "GET", "/api/internal/inbounds/default")
-        if not ok or not d.get("inbound"):
-            raise HTTPException(status_code=400, detail="اینباند نود در دسترس نیست")
-        n_ib = d["inbound"]
-        network = "ws"
-        security = "tls"
-        domain = n_ib.get("domain") or node["url"].split("//")[-1].split("/")[0]
-        external_domain = domain
-        sni = domain
-        node_target_id = node_id
     # Telegram uses the explicit internal listener from telegram_settings.
     if protocol == "telegram":
         port = int(body.get("port") or 0)
@@ -3292,8 +3008,6 @@ async def create_inbound(request: Request, _=Depends(require_auth)):
             "internal_port": int(telegram_settings.get("internal_port") or port or 44344),
             "external_port": int(telegram_settings.get("external_port") or external_port or 443),
             "external_domain": str(telegram_settings.get("external_domain") or external_domain or "").strip(),
-            # Optional channel link shown as promotion in generated proxy links
-            "promotion": str(telegram_settings.get("promotion") or body.get("promotion") or "").strip(),
         }
         port = telegram_settings["internal_port"]
         external_port = telegram_settings["external_port"]
@@ -3312,17 +3026,13 @@ async def create_inbound(request: Request, _=Depends(require_auth)):
         reality_settings.setdefault("spiderx", "/")
         reality_settings.setdefault("mldsa65_seed", fresh["mldsa65_seed"])
         reality_settings.setdefault("mldsa65_verify", fresh["mldsa65_verify"])
-        # Panel UI: SNI = what client sees in TLS handshake (server_name)
-        # Target = actual backend destination (dest in xray)
-        # These are SEPARATE fields. If target not provided, defaults to sni:443
+        # SNI from frontend is used as dest, server_names, and sni
+        if not reality_settings.get("dest"):
+            reality_settings["dest"] = (sni or "is1-ssl.mzstatic.com") + ":443"
+        if not reality_settings.get("server_names"):
+            reality_settings["server_names"] = [sni or "is1-ssl.mzstatic.com"]
         if not reality_settings.get("sni"):
             reality_settings["sni"] = sni or "is1-ssl.mzstatic.com"
-        if not reality_settings.get("target"):
-            reality_settings["target"] = (sni or "is1-ssl.mzstatic.com") + ":443"
-        # For xray config: dest = target, server_names = [sni]
-        reality_settings["dest"] = reality_settings["target"]
-        if not reality_settings.get("server_names"):
-            reality_settings["server_names"] = [reality_settings["sni"]]
         security = "reality"
         if not external_domain:
             external_domain = domain or CONFIG.get("host", "")
@@ -3369,11 +3079,6 @@ async def create_inbound(request: Request, _=Depends(require_auth)):
         xhttp_settings.setdefault("mode", "stream-up")
         xhttp_settings.setdefault("xPaddingBytes", "100-1000")
         xhttp_settings.setdefault("scMaxEachPostBytes", "1000000")
-
-    # Store node_target_id for node inbounds
-    if protocol == "node":
-        INBOUNDS[inbound_id]["node_target_id"] = node_target_id
-
     await save_state()
     log_activity("inbound", f"اینباند «{name}» با پروتکل {protocol.upper()} ساخته شد", "ok")
     asyncio.create_task(_xray_apply())  # (re)start Xray with the new inbound
@@ -3391,9 +3096,6 @@ async def update_inbound(inbound_id: str, request: Request, _=Depends(require_au
         ib = INBOUNDS.get(inbound_id)
         if not ib:
             raise HTTPException(status_code=404, detail="inbound not found")
-        # Node inbounds are non-editable — they mirror a remote panel's config
-        if ib.get("protocol") == "node":
-            raise HTTPException(status_code=400, detail="اینباند Node غیرقابل ویرایش است")
         if "name" in body:
             ib["name"] = str(body["name"]).strip()[:60]
         if "protocol" in body:
@@ -3408,18 +3110,6 @@ async def update_inbound(inbound_id: str, request: Request, _=Depends(require_au
                 ib["domain"] = wdom
                 ib["external_domain"] = wdom
                 ib["sni"] = ib.get("sni") or "www.hcaptcha.com"
-        # Merge reality_settings from body FIRST (so the key checks below see
-        # the merged values). A partial patch must never wipe existing keys.
-        if "reality_settings" in body and isinstance(body["reality_settings"], dict):
-            rs_body = body.pop("reality_settings")
-            rs_cur = ib.get("reality_settings") or {}
-            for k, v in rs_body.items():
-                if v not in (None, "") or k not in ("private_key", "public_key"):
-                    rs_cur[k] = v
-            # dest mirrors target for xray config
-            if "target" in rs_cur and rs_cur["target"]:
-                rs_cur["dest"] = rs_cur["target"]
-            ib["reality_settings"] = rs_cur
         if "port" in body:
             _pv = str(body["port"] or "").strip()
             ib["port"] = int(_pv) if _pv else ""  # "" = unconfigured (reality)
@@ -3442,16 +3132,10 @@ async def update_inbound(inbound_id: str, request: Request, _=Depends(require_au
             if not rs.get("short_id"):
                 rs["short_id"] = secrets.token_hex(5)[:10]
             rs.setdefault("spiderx", "/")
-            # SNI (server_name client sees) + Target (backend dest) are SEPARATE:
-            # if target unset, default to sni:443. dest mirrors target for xray.
-            if not rs.get("sni"):
-                rs["sni"] = "is1-ssl.mzstatic.com"
-            if not rs.get("target"):
-                rs["target"] = rs["sni"] + ":443"
-            rs["dest"] = rs.get("target") or (rs["sni"] + ":443")
-            if not rs.get("server_names"):
-                rs["server_names"] = [rs["sni"]]
-            if ib.get("network") not in ("tcp","xhttp","grpc"):
+            rs.setdefault("dest", "is1-ssl.mzstatic.com:443")
+            rs.setdefault("sni", "is1-ssl.mzstatic.com")
+            ib["sni"] = "is1-ssl.mzstatic.com"
+            if ib.get("network") not in ("tcp", "xhttp", "grpc"):
                 ib["network"] = "tcp"
         if "domain" in body:
             ib["domain"] = str(body["domain"]).strip()
@@ -3459,11 +3143,6 @@ async def update_inbound(inbound_id: str, request: Request, _=Depends(require_au
             ib["external_domain"] = str(body["external_domain"]).strip()
         if "sni" in body:
             ib["sni"] = str(body["sni"]).strip()
-            # Keep reality_settings.sni in sync if present (UI shows sni=server_name)
-            if ib.get("protocol") == "reality" or ib.get("security") == "reality":
-                rs = ib.setdefault("reality_settings", {})
-                rs["sni"] = ib["sni"]
-                rs["server_names"] = [ib["sni"]]
         if "spoof_ip" in body:
             ib["spoof_ip"] = str(body["spoof_ip"]).strip()
         if "external_port" in body:
@@ -3471,6 +3150,8 @@ async def update_inbound(inbound_id: str, request: Request, _=Depends(require_au
             ib["external_port"] = int(_ev) if _ev else ""
         if "fingerprint" in body:
             ib["fingerprint"] = str(body["fingerprint"]).strip()
+        if "reality_settings" in body and isinstance(body["reality_settings"], dict):
+            ib["reality_settings"] = body["reality_settings"]
         if "xhttp_settings" in body and isinstance(body["xhttp_settings"], dict):
             ib["xhttp_settings"] = body["xhttp_settings"]
         if "ws_settings" in body and isinstance(body["ws_settings"], dict):
@@ -3480,10 +3161,7 @@ async def update_inbound(inbound_id: str, request: Request, _=Depends(require_au
         if "wireguard_settings" in body and isinstance(body["wireguard_settings"], dict):
             ib["wireguard_settings"] = body["wireguard_settings"]
         if "telegram_settings" in body and isinstance(body["telegram_settings"], dict):
-            # Merge — a partial patch (e.g. just promotion) must not wipe ports
-            tg_cur = ib.get("telegram_settings") or {}
-            tg_cur.update({k: v for k, v in body["telegram_settings"].items() if v not in (None, "")})
-            ib["telegram_settings"] = tg_cur
+            ib["telegram_settings"] = body["telegram_settings"]
 
         if (ib.get("protocol") or "").lower() == "telegram":
             # Telegram Proxy: inbound settings are authoritative. Railway TCP
@@ -3877,15 +3555,6 @@ async def create_user(request: Request, _=Depends(require_auth)):
                 asyncio.create_task(_restart_telegram_proxy(_tg_iid))
     host = SETTINGS.get("domain") or get_host()
     asyncio.create_task(_xray_apply())  # refresh Xray clients after user change
-
-    # Node inbounds selected → create the same user (same UUID) on every node
-    new_u = USERS.get(user_id) or {}
-    has_node_inbound = any(
-        (INBOUNDS.get(i, {}) or {}).get("protocol", "").lower() == "node" for i in inbound_ids
-    )
-    if has_node_inbound:
-        asyncio.create_task(_propagate_user_to_nodes(new_u))
-
     return {
         "user_id": user_id,
         **USERS[user_id],
@@ -4023,17 +3692,27 @@ async def edit_user(user_id: str, request: Request, _=Depends(require_auth)):
         asyncio.create_task(_restart_telegram_proxy(_tg_iid))
     return {"ok": True, "user_id": user_id}
 
+@app.get("/api/users/{user_id}")
+async def get_user(user_id: str, _=Depends(require_auth)):
+    """Get single user details."""
+    async with USERS_LOCK:
+        if user_id not in USERS:
+            raise HTTPException(status_code=404, detail="user not found")
+        u = dict(USERS[user_id])
+        u["user_id"] = user_id
+        u["password_hash"] = None
+        return u
 
-async def _delete_user_internal(user_id: str, silent: bool = False) -> bool:
-    """Internal delete — same logic as the API endpoint but callable from bot/other code.
 
-    Returns True if a user was actually deleted.
-    """
+@app.delete("/api/users/{user_id}")
+async def delete_user(user_id: str, _=Depends(require_auth)):
+    """Delete a user permanently."""
     async with USERS_LOCK:
         u = USERS.get(user_id)
         if not u:
-            return False
+            raise HTTPException(status_code=404, detail="user not found")
         username = u.get("username", user_id)
+        # Clean up PATH_INDEX and synced link
         old_path = (u.get("path") or "").strip().lstrip("/")
         if old_path:
             PATH_INDEX.pop(old_path, None)
@@ -4041,203 +3720,16 @@ async def _delete_user_internal(user_id: str, silent: bool = False) -> bool:
         if config_uuid:
             PATH_INDEX.pop(config_uuid, None)
         USERS.pop(user_id, None)
+    # Delete matching link
     if config_uuid:
         async with LINKS_LOCK:
             LINKS.pop(config_uuid, None)
+    # If the deleted user used the worker inbound, tell the worker to drop them.
     if WORKER.get("connected") and _user_uses_worker_inbound(u):
         asyncio.create_task(_worker_sync_users())
-    # Propagate deletion to all connected nodes
-    async with NODES_LOCK:
-        node_list = list(NODES.values())
-    for node in node_list:
-        try:
-            ok, _, _ = await _node_request(node, "DELETE", f"/api/internal/user/{config_uuid}")
-            if not silent:
-                logger.debug(f"node {node['url']} delete propag: {ok}")
-        except Exception:
-            pass
     asyncio.create_task(save_state())
-    if not silent:
-        log_activity("user", f"کاربر «{username}» حذف شد", "err")
-    return True
-
-
-# Node-internal user delete endpoint (called by other panels via API key)
-@app.delete("/api/internal/user/{config_uuid}")
-async def node_internal_delete(config_uuid: str, request: Request):
-    """Delete a user by config_uuid — called by peer nodes during delete propagation."""
-    # Validate API key
-    api_key = request.headers.get("x-api-key") or ""
-    if not SETTINGS.get("api_key") or not secrets.compare_digest(api_key, str(SETTINGS["api_key"])):
-        raise HTTPException(status_code=401, detail="unauthorized")
-    async with USERS_LOCK:
-        target_uid = None
-        for uid, u in USERS.items():
-            if u.get("config_uuid") == config_uuid:
-                target_uid = uid
-                break
-    if target_uid:
-        await _delete_user_internal(target_uid, silent=True)
-        return {"ok": True}
-    return {"ok": False, "detail": "not found"}
-
-
-@app.post("/api/internal/user")
-async def node_internal_create(request: Request):
-    """Create a mirrored user (same UUID) — called by the master panel when a
-    user is created with a Node inbound. The local inbound used is the default
-    TLS WS one so the UUID resolves through this panel's own relay."""
-    api_key = request.headers.get("x-api-key") or ""
-    if not SETTINGS.get("api_key") or not secrets.compare_digest(api_key, str(SETTINGS["api_key"])):
-        raise HTTPException(status_code=401, detail="unauthorized")
-    body = await request.json()
-    cuuid = str(body.get("config_uuid") or "").strip()
-    username = (str(body.get("username") or "node-user") + "-n").strip()[:40]
-    if not cuuid:
-        raise HTTPException(status_code=400, detail="config_uuid required")
-    # Already exists? Just acknowledge.
-    async with USERS_LOCK:
-        for u in USERS.values():
-            if u.get("config_uuid") == cuuid:
-                return {"ok": True, "exists": True}
-    # Pick default TLS WS inbound
-    iid = "default" if "default" in INBOUNDS else (next(
-        (k for k, v in INBOUNDS.items() if v.get("protocol") == "vless"), None))
-    if not iid:
-        raise HTTPException(status_code=400, detail="no VLESS inbound on this panel")
-    uid = generate_short_id()
-    expire_raw = body.get("expire_at")
-    try:
-        expire_at = datetime.fromisoformat(expire_raw) if expire_raw else None
-    except Exception:
-        expire_at = None
-    async with USERS_LOCK:
-        USERS[uid] = {
-            "username": username,
-            "password_hash": hash_password(secrets.token_urlsafe(12)),
-            "protocol": "vless",
-            "traffic_limit_bytes": int(body.get("traffic_limit_bytes") or 0),
-            "traffic_used_bytes": 0,
-            "expire_at": expire_at.isoformat() if expire_at else None,
-            "concurrent_connections": int(body.get("concurrent_connections") or 3),
-            "created_at": datetime.now().isoformat(),
-            "status": "active",
-            "server": "Node",
-            "config_uuid": cuuid,
-            "subscription_uuid": str(body.get("subscription_uuid") or secrets.token_urlsafe(16)),
-            "inbound_id": iid,
-            "inbound_ids": [iid],
-            "path": f"/ws/{cuuid}",
-            "transport_type": "ws",
-            "telegram_secret": "",
-        }
-        async with LINKS_LOCK:
-            LINKS[cuuid] = {
-                "label": username, "limit_bytes": USERS[uid]["traffic_limit_bytes"],
-                "used_bytes": 0, "created_at": datetime.now().isoformat(),
-                "active": True, "expires_at": expire_at.isoformat() if expire_at else "",
-                "is_default": False, "sub_id": None, "protocol": "vless",
-                "transport_type": "ws", "path": cuuid, "user_id": uid,
-            }
-            PATH_INDEX[cuuid] = cuuid
-    asyncio.create_task(save_state())
-    asyncio.create_task(_xray_apply())
-    log_activity("node", f"کاربر آینه‌ای {username} از پنل اصلی ساخته شد", "ok")
-    return {"ok": True, "user_id": uid}
-
-
-@app.get("/api/internal/me")
-async def node_me(request: Request):
-    """Identity endpoint for connected nodes — returns panel info for health checks."""
-    api_key = request.headers.get("x-api-key") or ""
-    if not SETTINGS.get("api_key") or not secrets.compare_digest(api_key, str(SETTINGS["api_key"])):
-        raise HTTPException(status_code=401, detail="unauthorized")
-    return {"ok": True, "name": "SpiderPanel",
-            "ip": SETTINGS.get("server_ip", ""), "version": "1.0",
-            "users": len(USERS), "inbounds": len(INBOUNDS)}
-
-
-@app.get("/api/internal/inbounds/{uuid_key}")
-async def node_internal_inbounds(uuid_key: str, request: Request):
-    """Return the VLESS+WS inbound info for a UUID (used by linked nodes)."""
-    api_key = request.headers.get("x-api-key") or ""
-    if not SETTINGS.get("api_key") or not secrets.compare_digest(api_key, str(SETTINGS["api_key"])):
-        raise HTTPException(status_code=401, detail="unauthorized")
-    # Find the inbound that contains this user
-    async with USERS_LOCK:
-        for u in USERS.values():
-            if u.get("config_uuid") == uuid_key:
-                iid = u.get("inbound_id", "default")
-                ib = INBOUNDS.get(iid, {})
-                return {"ok": True, "inbound": ib}
-    return {"ok": False, "inbound": {}}
-
-
-@app.post("/api/internal/link")
-async def node_internal_link(request: Request):
-    """Accept a link from a linked node — creates a corresponding local link.
-
-    Called by other panels to propagate a newly-created user's link to this panel.
-    """
-    api_key = request.headers.get("x-api-key") or ""
-    if not SETTINGS.get("api_key") or not secrets.compare_digest(api_key, str(SETTINGS["api_key"])):
-        raise HTTPException(status_code=401, detail="unauthorized")
-    body = await request.json()
-    async with LINKS_LOCK:
-        LINKS[body["uid"]] = body
-    asyncio.create_task(save_state())
-    return {"ok": True}
-
-
-async def _propagate_to_nodes(user: dict) -> None:
-    """Push new user + link to all connected nodes after local creation."""
-    async with NODES_LOCK:
-        node_list = list(NODES.values())
-    if not node_list:
-        return
-    link = {}
-    config_uuid = user.get("config_uuid")
-    if config_uuid:
-        async with LINKS_LOCK:
-            link = LINKS.get(config_uuid, {})
-    for node in node_list:
-        try:
-            await _node_request(node, "POST", "/api/internal/link", json_body=link)
-        except Exception:
-            pass
-
-
-async def _propagate_user_to_nodes(user: dict) -> None:
-    """When a user is created with a Node inbound, create the same user (same
-    config_uuid) on every connected node via its API key. Nodes mirror the UUID
-    so the node section in sub.html stays synchronized across panels."""
-    async with NODES_LOCK:
-        node_list = list(NODES.values())
-    if not node_list:
-        return
-    payload = {
-        "username": user.get("username"),
-        "config_uuid": user.get("config_uuid"),
-        "subscription_uuid": user.get("subscription_uuid"),
-        "traffic_limit_bytes": user.get("traffic_limit_bytes", 0),
-        "expire_at": user.get("expire_at"),
-        "concurrent_connections": user.get("concurrent_connections", 3),
-        "inbound_id": "default",
-        "transport_type": "ws",
-    }
-    for node in node_list:
-        try:
-            await _node_request(node, "POST", "/api/internal/user", json_body=payload)
-        except Exception as e:
-            logger.warning(f"node user propagate failed: {e}")
-
-
-
-@app.delete("/api/users/{user_id}")
-async def delete_user(user_id: str, _=Depends(require_auth)):
-    """Delete a user permanently."""
-    ok = await _delete_user_internal(user_id)
-    return {"ok": ok, "deleted": user_id}
+    log_activity("user", f"کاربر «{username}» حذف شد", "err")
+    return {"ok": True, "deleted": user_id}
 
 @app.get("/api/users/{user_id}")
 async def get_single_user(user_id: str, _=Depends(require_auth)):
@@ -4624,169 +4116,6 @@ async def api_user_sub(username: str):
         config = configs[1]
     elif not config and configs:
         config = configs[0]
-
-    return {
-        "username": user.get("username"),
-        "config_uuid": user.get("config_uuid", ""),
-        "protocol": user.get("protocol", "vless"),
-        "custom_ip_type": user.get("custom_ip_type", ""),
-        "custom_ip_count": len(all_custom),
-        "custom_configs": all_custom,
-        "custom_railway_configs": custom_railway,
-        "custom_cf_configs": custom_cf,
-        "sni_spoof_configs": sni_spoof_cfgs,
-        "sni_spoof_count": len(sni_spoof_cfgs),
-        "traffic_used_bytes": used,
-        "traffic_used_fmt": fmt_bytes(used),
-        "traffic_limit_bytes": limit,
-        "traffic_limit_fmt": "∞" if limit == 0 else fmt_bytes(limit),
-        "traffic_percent": traffic_pct,
-        "expire_days": expire_days,
-        "expire_at": user.get("expire_at"),
-        "expire_at_ts": expire_at_ts,
-        "created_at": user.get("created_at"),
-        "created_at_ts": created_at_ts,
-        "status": status,
-        "is_active": is_active,
-        "vless_link": config,
-        "config": config,
-        "configs": configs,
-        "worker_configs": list(user.get("worker_configs") or []),
-        "worker_countries": list(user.get("worker_countries") or user.get("proxy_countries") or []),
-        "inbound_ids": inbound_ids,
-        "sni": user.get("sni", ""),
-        "path": user.get("path", ""),
-        "transport_type": user.get("transport_type", "ws"),
-        "concurrent_connections": user.get("concurrent_connections", 3),
-        "server": user.get("server", ""),
-        "proxy_ips": user.get("proxy_ips", []),
-        "proxy_country": user.get("proxy_country", ""),
-        "proxy_countries": user.get("proxy_countries", []),
-        "proxy_ip_enabled": user.get("proxy_ip_enabled", False),
-        "max_ip_per_user": int(user.get("concurrent_connections", SETTINGS.get("max_ip_per_user", 3) or 3)),
-        "used_ips": len(USER_IP_MAP.get(user.get("user_id", ""), set())),
-    }
-
-
-@app.get("/api/public/sub-uuid/{uuid_key}")
-async def public_sub_data_by_uuid(uuid_key: str, request: Request):
-    """Public subscription data by config_uuid (no auth required).
-    Used by /subs/{uuid} graphical page.
-    """
-    async with USERS_LOCK:
-        user = None
-        target_uid = None
-        for uid, u in USERS.items():
-            if u.get("config_uuid") == uuid_key:
-                user = dict(u)
-                user["user_id"] = uid
-                target_uid = uid
-                break
-        if not user:
-            # fallback: check links
-            async with LINKS_LOCK:
-                link = LINKS.get(uuid_key)
-            if link and is_link_allowed(link):
-                host = SETTINGS.get("domain") or get_host()
-                proto = link.get("protocol", DEFAULT_PROTOCOL)
-                return {
-                    "username": link["label"],
-                    "config_uuid": uuid_key,
-                    "protocol": proto,
-                    "vless_link": generate_vless_link(uuid_key, host, remark=f"Spider-{link['label']}", protocol=proto),
-                    "configs": [generate_vless_link(uuid_key, host, remark=f"Spider-{link['label']}", protocol=proto)],
-                    "is_active": True,
-                    "status": "active",
-                    "traffic_used_fmt": "∞",
-                    "traffic_limit_fmt": "∞",
-                    "traffic_percent": 0,
-                }
-            raise HTTPException(status_code=404, detail="not found")
-
-    if _user_uses_worker_inbound(user):
-        user = await _worker_pull_user(target_uid, user)
-
-    # Build response similar to /api/sub/{username} but without auth
-    auto_check_user_expiry(user)
-    status = user.get("status", "active")
-    is_active = is_user_allowed(user)
-    if not is_active and status == "active":
-        status = "expired" if user.get("status") != "disabled" else "disabled"
-
-    # Build configs
-    configs = []
-    inbound_ids = user.get("inbound_ids") or []
-    stored_path_user = (user.get("path") or "").strip()
-    if inbound_ids:
-        for iid_ in inbound_ids:
-            ib = INBOUNDS.get(iid_)
-            try:
-                _p = (ib.get("protocol") if ib else "").lower()
-                _s = (ib.get("security") if ib else "").lower()
-                if ib and (_p == "reality" or _s == "reality"):
-                    if not str(ib.get("external_domain") or "").strip() or not str(ib.get("external_port") or "").strip():
-                        continue
-                if ib and _p == "worker":
-                    configs.extend(_worker_configs(target_uid, user, ib, stored_path_user, f"Spider-{user.get('username', target_uid)}"))
-                else:
-                    cfg = generate_user_config(target_uid, user, iid_)
-                    if cfg:
-                        configs.append(cfg)
-            except Exception:
-                continue
-    if not configs:
-        fallback_config = generate_user_config(target_uid, user, user.get("inbound_id"))
-        configs = [fallback_config] if fallback_config else []
-
-    # Custom scanned-IP configs
-    custom_cfgs = generate_custom_ip_configs(target_uid, user)
-    custom_railway = custom_cfgs.get("railway", [])
-    custom_cf = custom_cfgs.get("cf", [])
-    all_custom = custom_railway + custom_cf
-    if all_custom:
-        configs = configs + all_custom
-
-    # Sni Spoof
-    sni_spoof_cfgs = []
-    if user.get("sni_spoof_v2box"):
-        sni_spoof_cfgs = generate_sni_spoof_configs(target_uid, user)
-        if sni_spoof_cfgs:
-            configs = configs + sni_spoof_cfgs
-
-    # Status config
-    status_config = generate_status_config(user, configs)
-    if status_config:
-        configs = [status_config] + configs
-
-    # Pick config for QR
-    config = None
-    for c in configs[1:]:
-        if c and ("type=ws" in c or "type=xhttp" in c):
-            config = c
-            break
-    if not config and len(configs) > 1:
-        config = configs[1]
-    elif not config and configs:
-        config = configs[0]
-
-    used = user.get("traffic_used_bytes", 0)
-    limit = user.get("traffic_limit_bytes", 0)
-    traffic_pct = round(used / max(limit, 1) * 100, 1) if limit > 0 else 0
-    expire_days = None
-    expire_at_ts = None
-    if user.get("expire_at"):
-        try:
-            exp = datetime.fromisoformat(user["expire_at"])
-            expire_at_ts = int(exp.timestamp())
-            expire_days = max(0, (exp - datetime.now()).days)
-        except Exception:
-            pass
-    created_at_ts = None
-    if user.get("created_at"):
-        try:
-            created_at_ts = int(datetime.fromisoformat(user["created_at"]).timestamp())
-        except Exception:
-            pass
 
     return {
         "username": user.get("username"),
@@ -6471,8 +5800,7 @@ def _add_inbound_to_xray(cfg: dict, ib: dict, iid: str, host: str):
         # hard-coded target, otherwise the client SNI and Xray destination can
         # describe different TLS targets.
         rs_sni = str(rs.get("sni") or ib.get("sni") or "is1-ssl.mzstatic.com").strip()
-        # dest mirrors target (the actual backend). Prefer target, fall back to dest.
-        rs_dest = str(rs.get("target") or rs.get("dest") or (rs_sni + ":443")).strip()
+        rs_dest = str(rs.get("dest") or (rs_sni + ":443")).strip()
         if "://" in rs_dest:
             rs_dest = rs_dest.split("://", 1)[1]
         rs_server_names = rs.get("server_names") or rs.get("serverNames") or [rs_sni]
@@ -8253,364 +7581,6 @@ async def tunnel_reverse_toggle(request: Request, _=Depends(require_auth)):
     log_activity("tunnel", f"Reverse {'فعال' if enabled else 'غیرفعال'} شد", "ok")
     asyncio.create_task(save_state())
     return {"ok": True, "enabled": enabled, **_worker_public(), "deployed": ok_deploy}
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# SERVER IDENTITY + API KEY
-# ══════════════════════════════════════════════════════════════════════════════
-
-_COUNTRY_FLAG = {
-    "US": "🇺🇸", "DE": "🇩🇪", "FR": "🇫🇷", "GB": "🇬🇧", "NL": "🇳🇱", "TR": "🇹🇷",
-    "IR": "🇮🇷", "CA": "🇨🇦", "SG": "🇸🇬", "JP": "🇯🇵", "AU": "🇦🇺", "IN": "🇮🇳",
-    "BR": "🇧🇷", "RU": "🇷🇺", "SE": "🇸🇪", "CH": "🇨🇭", "AT": "🇦🇹", "ES": "🇪🇸",
-    "IT": "🇮🇹", "PL": "🇵🇱", "FI": "🇫🇮", "NO": "🇳🇴", "DK": "🇩🇰", "IE": "🇮🇪",
-}
-
-async def _detect_server_identity() -> dict:
-    """Detect this server's public IP + country once and cache it in SETTINGS.
-
-    Uses ip-api.com (no key, generous limits); falls back to ifconfig.me for
-    just the IP. Called at startup; the result is persisted with the state.
-    """
-    async def _get(url: str):
-        try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                r = await client.get(url)
-                return r.json() if "json" in url or r.headers.get("content-type", "").startswith("application/json") else r.text.strip()
-        except Exception:
-            return None
-
-    info = await _get("http://ip-api.com/json/?fields=query,country,countryCode")
-    if isinstance(info, dict) and info.get("query"):
-        async with SETTINGS_LOCK if False else asyncio.Lock():
-            pass  # settings writes are cheap; guarded by single caller below
-        SETTINGS["server_ip"] = info["query"]
-        SETTINGS["server_country"] = info.get("country", "")
-        SETTINGS["server_country_code"] = info.get("countryCode", "")
-        asyncio.create_task(save_state())
-        logger.info(f"server identity: {info['query']} ({info.get('countryCode', '')})")
-        return {"ip": info["query"], "country": info.get("country", ""), "code": info.get("countryCode", "")}
-    ip = await _get("https://ifconfig.me/ip")
-    if ip:
-        SETTINGS["server_ip"] = str(ip)
-        asyncio.create_task(save_state())
-        return {"ip": str(ip), "country": "", "code": ""}
-    return {"ip": "", "country": "", "code": ""}
-
-
-@app.get("/api/server-identity")
-async def server_identity(_=Depends(require_auth)):
-    """Server public IP + country flag data (cached at startup)."""
-    ip = str(SETTINGS.get("server_ip") or "")
-    code = str(SETTINGS.get("server_country_code") or "").upper()
-    if not ip:
-        # First call before detection finished — kick a refresh and answer best-effort.
-        info = await _detect_server_identity()
-        ip = info.get("ip") or ""
-        code = (info.get("code") or "").upper()
-        country = info.get("country") or ""
-    else:
-        country = str(SETTINGS.get("server_country") or "")
-    return {"ok": True, "ip": ip, "country": country, "code": code,
-            "flag": _COUNTRY_FLAG.get(code, "🏳️" if code else "")}
-
-
-@app.get("/api/api-key")
-async def get_api_key(_=Depends(require_auth)):
-    """Return the panel's external-control API key (creating one on first use)."""
-    return {"ok": True, "api_key": _ensure_api_key()}
-
-
-@app.post("/api/api-key/rotate")
-async def rotate_api_key_ep(_=Depends(require_auth)):
-    return {"ok": True, "api_key": _rotate_api_key()}
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# NODES — remote panels controlled via their API key (max 10)
-# ══════════════════════════════════════════════════════════════════════════════
-
-NODES: dict = {}
-NODES_LOCK = asyncio.Lock()
-NODE_LIMIT = 10
-
-
-def _parse_node_target(target: str) -> tuple:
-    """Accept 'URL|KEY', 'KEY|URL' or a bare KEY (same-panel shortcut)."""
-    t = str(target or "").strip()
-    if "|" in t:
-        a, b = t.split("|", 1)
-        a, b = a.strip(), b.strip()
-        if a.lower().startswith(("http://", "https://")):
-            return a.rstrip("/"), b
-        return b.rstrip("/"), a
-    return "", t
-
-
-async def _node_request(node: dict, method: str, path: str, json_body=None):
-    url = node["url"].rstrip("/") + path
-    try:
-        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
-            r = await client.request(method, url, headers={"X-API-Key": node["key"]}, json=json_body)
-        ok = r.status_code == 200
-        data = {}
-        try: data = r.json()
-        except Exception: pass
-        return ok, r.status_code, data
-    except Exception as e:
-        return False, 0, {"detail": str(e)}
-
-
-@app.get("/api/nodes")
-async def nodes_list(_=Depends(require_auth)):
-    out = []
-    async with NODES_LOCK:
-        snap = list(NODES.values())
-    for n in snap:
-        ok, sc, d = await _node_request(n, "GET", "/api/internal/me")
-        out.append({"id": n["id"], "name": n.get("name") or (n["url"].split("//")[-1].split("/")[0]),
-                    "url": n["url"], "online": ok})
-    return {"ok": True, "nodes": out}
-
-
-@app.post("/api/nodes/add")
-async def nodes_add(request: Request, _=Depends(require_auth)):
-    body = await request.json()
-    domain = str(body.get("domain") or "").strip().replace("https://", "").replace("http://", "").rstrip("/")
-    key = str(body.get("api_key") or "").strip()
-    if not domain or not key:
-        raise HTTPException(status_code=400, detail="دامنه پنل و API Key هر دو الزامی هستند")
-    url = f"https://{domain}"
-    async with NODES_LOCK:
-        if len(NODES) >= NODE_LIMIT:
-            raise HTTPException(status_code=400, detail=f"حداکثر {NODE_LIMIT} نود مجاز است")
-        for n in NODES.values():
-            if n["url"] == url and n["key"] == key:
-                raise HTTPException(status_code=400, detail="این نود قبلا اضافه شده")
-        nid = secrets.token_hex(4)
-        NODES[nid] = {"id": nid, "url": url, "key": key, "name": body.get("name") or domain,
-                      "added_at": now_ir().isoformat(timespec="seconds")}
-    # Auto-create node inbound on first node
-    async with INBOUNDS_LOCK:
-        has_node_inbound = any((ib.get("protocol") or "").lower() == "node" for ib in INBOUNDS.values())
-    if not has_node_inbound:
-        # Node inbound just needs the node's domain. The remote panel should have
-        # a TLS WS inbound on port 443. We use the node's domain directly.
-        nname = f"Node: {domain}"
-        node_inbound_id = generate_short_id()
-        async with INBOUNDS_LOCK:
-            INBOUNDS[node_inbound_id] = {
-                "name": nname,
-                "protocol": "node",
-                "port": 0,
-                "network": "ws",
-                "security": "tls",
-                "domain": domain,
-                "external_domain": domain,
-                "sni": domain,
-                "external_port": "443",
-                "fingerprint": "chrome",
-                "reality_settings": {},
-                "xhttp_settings": {},
-                "ws_settings": {"path": "/ws/{uuid}"},
-                "grpc_settings": {},
-                "created_at": datetime.now().isoformat(),
-                "node_target_id": nid,
-            }
-        asyncio.create_task(save_state())
-        log_activity("inbound", f"اینباند Node برای نود {domain} ساخته شد", "ok")
-
-    asyncio.create_task(save_state())
-    log_activity("node", f"نود جدید اضافه شد: {url}", "ok")
-    return {"ok": True, "id": nid}
-
-
-@app.post("/api/nodes/{nid}/remove")
-async def nodes_remove(nid: str, _=Depends(require_auth)):
-    async with NODES_LOCK:
-        removed = NODES.pop(nid, None)
-    if removed:
-        asyncio.create_task(save_state())
-        log_activity("node", f"نود حذف شد: {removed['url']}", "warn")
-    return {"ok": bool(removed)}
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# BOT — Telegram channel bot: auto-publishes rotating configs to a channel
-# ══════════════════════════════════════════════════════════════════════════════
-
-BOT_STATE = {"token": "", "channel": "", "bot_name": "", "running": False,
-             "interval_seconds": 300, "webhook": "", "log": [], "task": None}
-BOT_LOG_MAX = 50
-
-
-def _bot_log(msg: str):
-    BOT_STATE["log"].append({"time": now_ir().isoformat(timespec="seconds"), "msg": msg})
-    del BOT_STATE["log"][:-BOT_LOG_MAX]
-
-
-async def _tg_api(method: str, **params):
-    async with httpx.AsyncClient(timeout=20) as client:
-        r = await client.post(f"https://api.telegram.org/bot{BOT_STATE['token']}/{method}", json=params)
-        return r.json()
-
-
-def _pick_random_inbounds() -> list:
-    """Pick up to two random TLS-capable inbound ids for the bot user."""
-    candidates = [iid for iid, ib in INBOUNDS.items()
-                  if ((ib or {}).get("protocol") or "").lower() in ("vless",)]
-    random.shuffle(candidates)
-    return candidates[:2]
-
-
-async def _bot_publish_once() -> None:
-    """Create a throwaway user on two random inbounds and post it to the channel."""
-    iids = _pick_random_inbounds()
-    if not iids:
-        _bot_log("اینباند TLS موجود نیست")
-        return
-    username = "bot_" + secrets.token_hex(3)
-    cuuid = str(uuid.uuid4())
-    async with USERS_LOCK:
-        uid = generate_short_id()
-        USERS[uid] = {
-            "user_id": uid, "username": username, "status": "active",
-            "created_at": datetime.now().isoformat(),
-            "expire_at": "", "traffic_limit_bytes": 0, "traffic_used_bytes": 0,
-            "concurrent_connections": 0, "inbound_id": iids[0], "inbound_ids": iids[:2],
-            "config_uuid": cuuid, "note": "auto-created by channel bot",
-        }
-        async with LINKS_LOCK:
-            LINKS[cuuid] = {
-                "label": username, "limit_bytes": 0, "used_bytes": 0,
-                "created_at": datetime.now().isoformat(), "active": True,
-                "expires_at": "", "note": "bot auto", "is_default": False,
-                "sub_id": None, "protocol": "vless", "transport_type": "ws",
-                "path": cuuid, "user_id": uid,
-            }
-            PATH_INDEX[cuuid] = cuuid
-    asyncio.create_task(save_state())
-    sub_link = f"https://{_safe_host(SETTINGS.get('domain'), '')}/subs/{cuuid}".replace("/subs/", "/subs/") \
-        if SETTINGS.get("domain") else f"/subs/{cuuid}"
-    host = _safe_host(SETTINGS.get("domain"), "")
-    if host:
-        sub_link = f"https://{host}/subs/{cuuid}"
-    caption = (f"Sub_Link\n{sub_link}\n\n\n"
-               f"{BOT_STATE['channel']}\n\n"
-               f"Spider Panel by <a href=\"https://t.me/amirsp1ider\">@amirsp1ider</a>")
-    # QR image of the sub link via the existing QR generator
-    photo = None
-    try:
-        import qrcode as _qr, io as _io
-        img = _qr.make(sub_link)
-        buf = _io.BytesIO(); img.save(buf, format="PNG"); photo = buf.getvalue()
-    except Exception:
-        photo = None
-    try:
-        if photo:
-            await _tg_api("sendPhoto", chat_id=BOT_STATE["channel"], photo="attach://q",
-                          caption=caption, parse_mode="HTML",
-                          media=[{"type": "photo", "media": "attach://q"}])
-        else:
-            await _tg_api("sendMessage", chat_id=BOT_STATE["channel"], text=caption)
-        _bot_log(f"کاربر {username} منتشر شد")
-        # Rotate: delete the previous published user (keep only the newest)
-        prev = getattr(_bot_publish_once, "_last_uid", None)
-        if prev and prev != uid:
-            await _delete_user_internal(prev, silent=True)
-            _bot_log("کاربر قبلی حذف شد")
-        _bot_publish_once._last_uid = uid
-    except Exception as e:
-        _bot_log(f"خطای ارسال به تلگرام: {e}")
-
-
-async def _bot_loop():
-    while BOT_STATE["running"]:
-        try:
-            await _bot_publish_once()
-        except Exception as e:
-            _bot_log(str(e))
-        await asyncio.sleep(BOT_STATE["interval_seconds"])
-
-
-async def _restore_bot():
-    tok = str(SETTINGS.get("bot_token") or "")
-    ch = str(SETTINGS.get("bot_channel") or "")
-    if tok and ch:
-        BOT_STATE.update({"token": tok, "channel": ch})
-        me = await _tg_api("getMe")
-        if isinstance(me, dict) and me.get("ok"):
-            BOT_STATE["bot_name"] = "@" + me["result"]["username"]
-            BOT_STATE["connected"] = True
-        else:
-            BOT_STATE["connected"] = False
-
-
-@app.get("/api/bot/status")
-async def bot_status(_=Depends(require_auth)):
-    connected = bool(BOT_STATE.get("token")) and bool(BOT_STATE.get("bot_name"))
-    return {"ok": True, "connected": connected, "running": BOT_STATE["running"],
-            "bot_name": BOT_STATE.get("bot_name", ""), "channel": BOT_STATE.get("channel", ""),
-            "webhook": BOT_STATE.get("webhook", ""),
-            "interval_seconds": BOT_STATE["interval_seconds"],
-            "log": list(BOT_STATE["log"])[-30:]}
-
-
-@app.post("/api/bot/connect")
-async def bot_connect(request: Request, _=Depends(require_auth)):
-    body = await request.json()
-    token = str(body.get("token") or "").strip()
-    channel = str(body.get("channel") or "").strip()
-    if not token or not channel:
-        raise HTTPException(status_code=400, detail="توکن و چنل الزامی است")
-    BOT_STATE["token"], BOT_STATE["channel"] = token, channel
-    me = await _tg_api("getMe")
-    if not (isinstance(me, dict) and me.get("ok")):
-        BOT_STATE["token"] = ""
-        raise HTTPException(status_code=400, detail="توکن بات نامعتبر است")
-    BOT_STATE["bot_name"] = "@" + me["result"]["username"]
-    # webhook info (informational — polling-free design uses our own loop)
-    wh = await _tg_api("getWebhookInfo")
-    if isinstance(wh, dict) and wh.get("ok"):
-        BOT_STATE["webhook"] = wh["result"].get("url") or "(none — internal loop)"
-    SETTINGS["bot_token"], SETTINGS["bot_channel"] = token, channel
-    asyncio.create_task(save_state())
-    _bot_log(f"متصل شد: {BOT_STATE['bot_name']} → {channel}")
-    return {"ok": True, "bot_name": BOT_STATE["bot_name"], "webhook": BOT_STATE.get("webhook", "")}
-
-
-@app.post("/api/bot/start")
-async def bot_start(request: Request, _=Depends(require_auth)):
-    global BOT_TASK
-    if not BOT_STATE.get("token"):
-        raise HTTPException(status_code=400, detail="ربات متصل نیست")
-    body = await request.json()
-    sec = max(5, int(body.get("interval_seconds") or 300))
-    BOT_STATE["interval_seconds"] = sec
-    SETTINGS["bot_interval_seconds"] = sec
-    asyncio.create_task(save_state())
-    if BOT_STATE["running"]:
-        return {"ok": True}
-    BOT_STATE["running"] = True
-    BOT_TASK = asyncio.create_task(_bot_loop())
-    _bot_log(f"شروع با بازه {sec}s")
-    return {"ok": True}
-
-
-@app.post("/api/bot/stop")
-async def bot_stop(_=Depends(require_auth)):
-    BOT_STATE["running"] = False
-    _bot_log("توقف")
-    return {"ok": True}
-
-
-@app.post("/api/bot/disconnect")
-async def bot_disconnect(_=Depends(require_auth)):
-    BOT_STATE["running"] = False
-    BOT_STATE.update({"token": "", "channel": "", "bot_name": "", "webhook": ""})
-    SETTINGS["bot_token"], SETTINGS["bot_channel"] = "", ""
-    asyncio.create_task(save_state())
-    return {"ok": True}
 
 
 # ══════════════════════════════════════════════════════════════════════════════

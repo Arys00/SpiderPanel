@@ -1605,13 +1605,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
     </div>
   </div>
 
-  <div class="section-title">
-    <span data-i18n="yourConfigs">کانفیگ‌های شما</span> (<span id="cfgCount">0</span>)
-    <button class="btn btn-sm btn-g" id="selfCfgBtn" onclick="scanSelfConfig()"
-      style="font-size:11px;padding:3px 10px;background:linear-gradient(90deg,var(--accent,#00e1c1),#00b8a3);color:#000;border:none"
-      data-i18n="selfConfigBtn">ساخت کانفیگ خودتان</button>
-    <div class="line"></div>
-  </div>
+  <div class="section-title"><span data-i18n="yourConfigs">کانفیگ‌های شما</span> (<span id="cfgCount">0</span>)<div class="line"></div></div>
   <div class="configs-list" id="configList"></div>
   <div class="social-section">
     <div class="social-title" data-i18n="followUs">ما را دنبال کنید</div>
@@ -1656,24 +1650,16 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script>
 (function(){
   "use strict";
-  // Live data pulled from the panel API. Two entry paths:
-  //   /sub/{username}  → admin preview (authed) → /api/sub/{username}
-  //   /subs/{uuid}     → graphical public page → /api/public/sub-uuid/{uuid}
-  var pathParts = window.location.pathname.split('/').filter(Boolean);
-  var isUuidPath = pathParts[0] === 'subs';
-  var uname = pathParts.pop();
-  var apiUrl = isUuidPath
-    ? '/api/public/sub-uuid/' + encodeURIComponent(uname)
-    : '/api/sub/' + encodeURIComponent(uname);
+  // Live data pulled from the panel API (/api/sub/{username}). No hardcoded
+  // defaults — everything on this page is rendered from the real user record.
+  var uname = window.location.pathname.split('/').filter(Boolean).pop();
+  var apiUrl = '/api/sub/' + encodeURIComponent(uname);
   var CONFIG_LINKS = [];
   var CONFIG_NAMES = [];
   var CONFIG_PROTOS = [];
   var SUB_URL = '';
   var IS_ACTIVE = false;
   var SUB_ID = '';
-  var TUNNEL_CFGS = [];
-  var NODE_CFGS = [];
-  var YOURS_CFGS = [];
 
   var i18n = {
     fa: {title:"ایستگاه فضایی اشتراک",tagline:"مرکز فرماندهی کانفیگ‌های شما",badgeActive:"✅ فعال",badgeUnlimited:"📅 نامحدود",badgeConfigs:"کانفیگ",statusOnline:"آنلاین",followUs:"ما را دنبال کنید",teamWord:"تیم",subLabel:"لینک سابسکریپشن",copyLink:"کپی لینک",accountTitle:"اطلاعات اکانت",sId:"شناسه اشتراک",lastConn:"آخرین اتصال",justNow:"همین الان",dlExact:"حجم دانلود",ulExact:"حجم آپلود",totalLimit:"سقف کل",totalUsed:"مجموع مصرف",usernameLbl:"نام کاربری",connLimit:"اتصال مجاز",connActive:"اتصال فعلی",trafficPercent:"درصد مصرف ترافیک",speedTitle:"سرعت عالی",speedPeriod:"24 ساعت گذشته",usageChart:"نمودار مصرف",lastUpdate:"آخرین بروزرسانی:",usage:"مصرف شده",remaining:"حجم باقی‌مانده",left:"باقی‌مانده",total:"کل",used:"مصرف‌شده",remain:"حجم باقی‌مانده",expireLabel:"⏱ انقضا",unlimited:"∞ نامحدود",noExpire:"بدون تاریخ انقضا",min:"دقیقه",hour:"ساعت",day:"روز",copyAll:"کپی همه کانفیگ‌ها",copySubText:"کپی متن ساب",all:"همه",search:"جستجو در کانفیگ‌ها...",yourConfigs:"کانفیگ‌های شما",qrHint:"اسکن کنید تا کانفیگ اضافه شود",close:"بستن",toastSub:"لینک ساب کپی شد",toastAll:"همه کانفیگ‌ها کپی شدند",toastCfg:"کانفیگ کپی شد",toastId:"شناسه کپی شد",toastSubText:"متن ساب کپی شد",toastErr:"خطا در کپی",connectedActive:"متصل و فعال",secureReady:"اتصال امن شما آماده استفاده است",quickConnect:"اتصال سریع",usageChart:"نمودار مصرف",chartUpdated:"آخرین بروزرسانی: ۱۴۰۴/۰۶/۲۲ - ۱۲:۳۰"},
@@ -2003,130 +1989,31 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
     return tags.join(' ') || 'other';
   }
 
-  function cfgCard(link, i, section) {
-    var iconColors = ['var(--cyan)', 'var(--magenta)', 'var(--gold)', 'var(--orange)', 'var(--success)'];
-    var color = iconColors[i % iconColors.length];
-    var card = document.createElement('div');
-    card.className = 'config-card';
-    card.setAttribute('data-index', i);
-    card.setAttribute('data-tags', dataProtoKey(link) + (section ? ' ' + section : ''));
-    card.innerHTML =
-      '<div class="config-left">' +
-        '<div class="proto-icon"><svg viewBox="0 0 24 24" fill="none" stroke="' + color + '" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 015 0c0 1.5-2 2-2 3.5M12 17h.01" stroke-linecap="round"/></svg></div>' +
-        '<div class="config-info"><span class="config-name">' + esc(CONFIG_NAMES[i] || ('Config ' + (i + 1))) + '</span><span class="config-proto">' + esc(CONFIG_PROTOS[i] || protoOf(link)) + '</span></div>' +
-      '</div>' +
-      '<div class="config-actions">' +
-        '<button class="icon-btn copy-cfg" type="button" data-index="' + i + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>' +
-        '<button class="icon-btn qr-btn" type="button" data-index="' + i + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M20 20v.01"/></svg></button>' +
-      '</div>';
-    return card;
-  }
-
-  function sectionHeader(titleFa, titleEn) {
-    var h = document.createElement('div');
-    h.className = 'cfg-section-h';
-    h.style.cssText = 'display:flex;align-items:center;gap:8px;margin:18px 4px 8px;font-size:12px;font-weight:700;color:var(--accent,#00e1c1);letter-spacing:.5px';
-    h.innerHTML = '<span style="flex:1;height:1px;background:linear-gradient(90deg,var(--accent,#00e1c1),transparent)"></span>' +
-      '<span>' + esc(lang === 'fa' ? titleFa : titleEn) + '</span>' +
-      '<span style="flex:1;height:1px;background:linear-gradient(270deg,var(--accent,#00e1c1),transparent)"></span>';
-    return h;
-  }
-
   function renderConfigs() {
     var list = document.getElementById("configList");
     if (!list) return;
     list.innerHTML = '';
-    // Yours section first (freshly scanned, session-only)
-    if (YOURS_CFGS.length) {
-      list.appendChild(sectionHeader('کانفیگ شما (yours)', 'Your Configs (yours)'));
-      YOURS_CFGS.forEach(function(link, j) {
-        var gi = CONFIG_LINKS.indexOf(link);
-        list.appendChild(cfgCard(link, gi >= 0 ? gi : j, 'yours'));
-      });
-    }
-    // Tunnel section
-    if (TUNNEL_CFGS.length) {
-      list.appendChild(sectionHeader('تونل — Worker / Reverse / Tunnel / Yours', 'Tunnel — Worker / Reverse / Tunnel / Yours'));
-      TUNNEL_CFGS.forEach(function(link, j) {
-        var gi = CONFIG_LINKS.indexOf(link);
-        list.appendChild(cfgCard(link, gi >= 0 ? gi : j, 'tunnel'));
-      });
-    }
-    // Node section
-    if (NODE_CFGS.length) {
-      list.appendChild(sectionHeader('نودها', 'Nodes'));
-      NODE_CFGS.forEach(function(link, j) {
-        var gi = CONFIG_LINKS.indexOf(link);
-        list.appendChild(cfgCard(link, gi >= 0 ? gi : j, 'node'));
-      });
-    }
-    // Fallback: flat render if nothing categorized
-    if (!TUNNEL_CFGS.length && !NODE_CFGS.length && !YOURS_CFGS.length) {
-      CONFIG_LINKS.forEach(function(link, i) { list.appendChild(cfgCard(link, i)); });
-    }
+    var iconColors = ['var(--cyan)', 'var(--magenta)', 'var(--gold)', 'var(--orange)', 'var(--success)'];
+    CONFIG_LINKS.forEach(function(link, i) {
+      var card = document.createElement('div');
+      card.className = 'config-card';
+      card.setAttribute('data-index', i);
+      card.setAttribute('data-tags', dataProtoKey(link));
+      var color = iconColors[i % iconColors.length];
+      card.innerHTML =
+        '<div class="config-left">' +
+          '<div class="proto-icon"><svg viewBox="0 0 24 24" fill="none" stroke="' + color + '" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 015 0c0 1.5-2 2-2 3.5M12 17h.01" stroke-linecap="round"/></svg></div>' +
+          '<div class="config-info"><span class="config-name">' + esc(CONFIG_NAMES[i] || ('Config ' + (i + 1))) + '</span><span class="config-proto">' + esc(CONFIG_PROTOS[i] || protoOf(link)) + '</span></div>' +
+        '</div>' +
+        '<div class="config-actions">' +
+          '<button class="icon-btn copy-cfg" type="button" data-index="' + i + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>' +
+          '<button class="icon-btn qr-btn" type="button" data-index="' + i + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M20 20v.01"/></svg></button>' +
+        '</div>';
+      list.appendChild(card);
+    });
     var cnt = document.getElementById('cfgCount');
     if (cnt) cnt.textContent = String(CONFIG_LINKS.length);
     bind(); // re-bind copy/qr/search/filter handlers for the new cards
-  }
-
-  // ── Self-config scanner ("ساخت کانفیگ خودتان") ──────────────────────────
-  // Scans Railway IPs when the domain is railway.app, Cloudflare IPs otherwise,
-  // or both in turn. Builds up to two fresh "yours" TLS configs per source.
-  // Session-only: a page refresh clears them.
-  async function scanSelfConfig() {
-    var btn = document.getElementById('selfCfgBtn');
-    if (btn) { btn.disabled = true; btn.style.opacity = '.6'; }
-    try {
-      var host = window.location.hostname || '';
-      var sources = [];
-      if (/railway\.app$/.test(host)) sources = ['railway'];
-      else if (host) sources = ['cf'];
-      else sources = ['railway', 'cf'];
-
-      var collected = [];
-      for (var s = 0; s < sources.length; s++) {
-        var r = await fetch('/api/public/self-config?uuid=' + encodeURIComponent(SUB_ID) +
-                            '&source=' + sources[s], { cache: 'no-store' });
-        if (!r.ok) continue;
-        var d = await r.json();
-        if (d.ok && Array.isArray(d.configs)) collected = collected.concat(d.configs.slice(0, 2));
-      }
-      if (!collected.length) throw new Error(lang === 'fa' ? 'IP سالمی پیدا نشد' : 'No working IPs found');
-      // Merge into view (session only — no save)
-      YOURS_CFGS = collected;
-      CONFIG_LINKS = CONFIG_LINKS.filter(function(c){ return YOURS_CFGS.indexOf(c) === -1; }).concat(YOURS_CFGS);
-      CONFIG_NAMES = CONFIG_LINKS.map(function(c) {
-        var h = c.split('#');
-        try { return decodeURIComponent((h[1] || '').replace(/\+/g, ' ')) || 'Config'; } catch(e){ return 'Config'; }
-      });
-      CONFIG_PROTOS = CONFIG_LINKS.map(protoOf);
-      // Re-split sections so yours renders on top
-      applySections();
-      renderConfigs();
-      showToast(lang === 'fa' ? (collected.length + ' کانفیگ ساخته شد') : (collected.length + ' configs created'), 'ok');
-    } catch (e) {
-      showToast(e.message || 'scan failed', 'err');
-    }
-    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
-  }
-
-  function applySections() {
-    var FLAG_RE = /#.*Spider-[\u{1F1E6}-\u{1F1FF}]{2}/u;
-    TUNNEL_CFGS = []; NODE_CFGS = [];
-    CONFIG_LINKS.forEach(function(c) {
-      var isNode = false;
-      try { isNode = FLAG_RE.test(decodeURIComponent(c)); } catch(e){}
-      (isNode ? NODE_CFGS : TUNNEL_CFGS).push(c);
-    });
-  }
-
-  function showToast(msg, kind) {
-    var t = document.createElement('div');
-    t.className = 'toast' + (kind === 'err' ? ' toast-err' : '');
-    t.style.cssText = 'position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:10px 18px;border-radius:10px;font-size:12.5px;z-index:9999;border:1px solid rgba(255,255,255,.12)';
-    t.textContent = msg;
-    document.body.appendChild(t);
-    setTimeout(function(){ t.remove(); }, 2600);
   }
 
   function setText(id, val) {
@@ -2150,43 +2037,28 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
   }
 
   function applyData(d) {
-    // ── Configs categorized: Tunnel (worker/reverse/tunnel/yours) + Node ──
-    var tunnelCfgs = [];
-    var nodeCfgs = [];
-    var allCfgs = [];
+    // ── Configs: worker configs first, then main configs, then custom/SNI —
+    // exactly what the panel's subscription endpoint serves, minus the
+    // backend status config (📊 remark) which this page replaces with real stats.
+    var cfgs = [];
     if (Array.isArray(d.configs) && d.configs.length) {
-      allCfgs = d.configs.filter(function(c) { return c && c.indexOf('%F0%9F%93%8A') === -1; });
+      cfgs = d.configs.filter(function(c) { return c && c.indexOf('%F0%9F%93%8A') === -1; });
     }
-    if (!allCfgs.length && Array.isArray(d.worker_configs) && d.worker_configs.length) {
-      allCfgs = d.worker_configs.slice();
+    if (!cfgs.length && Array.isArray(d.worker_configs) && d.worker_configs.length) {
+      cfgs = d.worker_configs.slice();
     }
-    if (!allCfgs.length && d.config) allCfgs = [d.config];
-
-    // Split by remark: node configs carry a country flag emoji (Spider-🇽🇽 name)
-    var FLAG_RE = /#.*Spider-[\u{1F1E6}-\u{1F1FF}]{2}/u;
-    (d.node_configs || []).forEach(function(c){ nodeCfgs.push(typeof c === 'string' ? c : (c.config || '')); });
-    allCfgs.forEach(function(c) {
-      var isNode;
-      try { isNode = FLAG_RE.test(decodeURIComponent(c)); } catch(e) { isNode = false; }
-      if (!isNode) isNode = /@/.test(c) && /type=ws|type=xhttp/.test(c) &&
-        (d.inbound_ids || []).some(function(i){ return String(i).indexOf('node') === 0; }) === false &&
-        false; /* conservative: rely on remark only */
-      (isNode ? nodeCfgs : tunnelCfgs).push(c);
-    });
-
-    TUNNEL_CFGS = tunnelCfgs;
-    NODE_CFGS = nodeCfgs;
-    CONFIG_LINKS = tunnelCfgs.concat(nodeCfgs);
-    CONFIG_NAMES = CONFIG_LINKS.map(function(c) {
+    if (!cfgs.length && d.config) cfgs = [d.config];
+    CONFIG_LINKS = cfgs;
+    CONFIG_NAMES = cfgs.map(function(c) {
       var h = c.split('#');
       try { return decodeURIComponent((h[1] || '').replace(/\+/g, ' ')) || 'Config'; }
       catch (e) { return 'Config'; }
     });
-    CONFIG_PROTOS = CONFIG_LINKS.map(protoOf);
+    CONFIG_PROTOS = cfgs.map(protoOf);
 
     // ── Subscription link + ID ──
     SUB_ID = d.config_uuid || uname;
-    SUB_URL = window.location.origin + '/subs/' + SUB_ID;
+    SUB_URL = window.location.origin + '/sub/' + SUB_ID;
     setText('subUrl', SUB_URL);
     setText('subId', SUB_ID);
 
