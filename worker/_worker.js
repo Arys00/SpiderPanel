@@ -57,16 +57,14 @@ async function setUser(env, uuid, u) {
   }
 }
 
-// Tunnel KV: the tunnel keeps its own user records in TUNNEL_KV so its state
-// (usage/expiry) is fully independent from the main worker namespace.
+// Tunnel + Reverse share the single SPIDER_KV namespace (all worker/tunnel/
+// reverse user records live in one KV — no separate namespaces).
 function tunnelEnv(env) {
-  return { SPIDER_KV: env.TUNNEL_KV || env.SPIDER_KV };
+  return { SPIDER_KV: env.SPIDER_KV };
 }
 
-// Reverse KV: reverse-mode user records live in REVERSE_KV — a third fully
-// separate namespace (worker / tunnel / reverse never share keys).
 function reverseEnv(env) {
-  return { SPIDER_KV: env.REVERSE_KV || env.SPIDER_KV };
+  return { SPIDER_KV: env.SPIDER_KV };
 }
 
 // ── Batched Traffic Accounting ───────────────────────────────────────────────
@@ -570,7 +568,7 @@ async function openReverseRelay(uuid, firstChunk) {
 
 // ── Panel Tunnel / Reverse WS ───────────────────────────────────────────────
 // Same VLESS-over-WS handling as handleVlessWs but:
-//   - the user record comes from a dedicated KV (TUNNEL_KV or REVERSE_KV,
+//   - the user record comes from a shared KV (SPIDER_KV,
 //     passed in via the env wrapper),
 //   - egress routing depends on mode:
 //       tunnel  → DIRECT to the VLESS target
@@ -870,9 +868,9 @@ function workerConfigsForUser(u) {
     //   /{uuid}            → direct tunnel (user's proxy_ip from KV)
     //   /route/{code}      → country-based routing (proxy from KV 'proxies' map)
     //   /tunnel/{uuid}     → panel tunnel chain: user → Railway → here → site.
-    //                        Authenticated against TUNNEL_KV; direct outbound.
+    //                        Authenticated against SPIDER_KV; direct outbound.
     //   /reverse/{uuid}    → reverse chain: user → here → Railway → site.
-    //                        Authenticated against REVERSE_KV; egress relays
+    //                        Authenticated against SPIDER_KV; egress relays
     //                        back to the panel over WSS.
     const seg = path.split('/').filter(Boolean);
     const first = (seg[0] || '').toLowerCase();
@@ -886,7 +884,7 @@ function workerConfigsForUser(u) {
     }
 
     // Panel tunnel: /tunnel/{uuid} — Railway relays the client's raw VLESS
-    // stream here. User record lives in TUNNEL_KV; egress goes straight to
+    // stream here. User record lives in SPIDER_KV; egress goes straight to
     // the VLESS target (no country proxy in the tunnel chain).
     if (first === 'tunnel' && seg[1] && uuidRe().test(seg[1])) {
       if (request.headers.get('Upgrade') !== 'websocket') {
@@ -900,11 +898,9 @@ function workerConfigsForUser(u) {
     }
 
     // Reverse: /reverse/{uuid} — client hits the Worker domain directly;
-    // user record lives in REVERSE_KV and egress is relayed to Railway
+    // user record lives in SPIDER_KV and egress is relayed to Railway
     // (/tunnel/{uuid}) which performs the final connect to the site.
-    // Fallback: the panel syncs users into the MAIN KV (SPIDER_KV); until a
-    // dedicated reverse sync populates REVERSE_KV, accept those records too,
-    // otherwise every reverse config would 403 against an empty namespace.
+    // Fallback: try main env as well if reverse env lookup fails.
     if (first === 'reverse' && seg[1] && uuidRe().test(seg[1])) {
       if (request.headers.get('Upgrade') !== 'websocket') {
         return json({ error: 'websocket upgrade required' }, 400);

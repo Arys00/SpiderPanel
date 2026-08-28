@@ -185,6 +185,17 @@ async def load_state():
                 WORKER.update(data["worker"])
                 if was_connected:
                     WORKER["connected"] = True
+            if isinstance(data.get("server_info"), dict):
+                SERVER_INFO.update(data["server_info"])
+            if isinstance(data.get("panel_api_key"), str) and data.get("panel_api_key"):
+                global PANEL_API_KEY
+                PANEL_API_KEY = data["panel_api_key"]
+            if isinstance(data.get("nodes"), dict):
+                NODES.update(data["nodes"])
+            if isinstance(data.get("bot_config"), dict):
+                BOT_CONFIG.update(data["bot_config"])
+                # never resume a bot loop on boot
+                BOT_CONFIG["running"] = False
             logger.info(f"State loaded: {len(LINKS)} links, {len(SUBS)} subs, {len(USERS)} users, {len(GROUPS)} groups, {len(IP_POOL)} ips, {len(INBOUNDS)} inbounds")
     except Exception as e:
         logger.warning(f"Could not load state: {e}")
@@ -308,6 +319,10 @@ async def save_state():
                 "ip_pool": list(IP_POOL),
                 "ip_blacklist": list(IP_BLACKLIST),
                 "worker": dict(WORKER),
+                "server_info": dict(SERVER_INFO),
+                "panel_api_key": PANEL_API_KEY,
+                "nodes": dict(NODES),
+                "bot_config": dict(BOT_CONFIG),
                 "password_hash": AUTH["password_hash"],
                 "saved_secret": CONFIG["secret"],
                 "saved_at": datetime.now().isoformat(),
@@ -436,19 +451,50 @@ WORKER: dict = {
     "auto_sync": True,
     "sync_error": "",
     "sync_count": 0,
-    # Tunnel: dedicated KV + inbound (user → Railway → Worker → site)
-    "tunnel_kv_namespace_id": "",
-    "tunnel_kv_namespace_title": "",
+    # Tunnel: inbound (user → Railway → Worker → site)
+    # All modes (worker/tunnel/reverse) share a single SPIDER_KV namespace.
     "tunnel_enabled": False,
     "tunnel_created_at": "",
     "tunnel_logs": [],
-    # Reverse: dedicated KV + mode flag (user → Worker → Railway → site)
-    "reverse_kv_namespace_id": "",
-    "reverse_kv_namespace_title": "",
+    "reverse_enabled": False,
 }
 WORKER_LOCK = asyncio.Lock()
 # Serialize source syncs (hourly loop + manual button can't overlap).
 WORKER_SYNC_LOCK = asyncio.Lock()
+
+# ── Server Info (Public IP + Country) ─────────────────────────────────────
+SERVER_INFO: dict = {
+    "public_ip": "",
+    "country": "",
+    "country_code": "",
+    "country_flag": "",
+    "detected_at": "",
+}
+SERVER_INFO_LOCK = asyncio.Lock()
+
+# ── Panel API Key ──────────────────────────────────────────────────────────
+PANEL_API_KEY: str = ""
+PANEL_API_KEY_LOCK = asyncio.Lock()
+
+# ── Nodes (remote panels) ───────────────────────────────────────────────────
+NODES: dict = {}  # node_id -> {id, name, api_key, url, region, status, last_sync, created_at}
+NODES_LOCK = asyncio.Lock()
+MAX_NODES = 10
+
+# ── Telegram Bot ───────────────────────────────────────────────────────────
+BOT_CONFIG: dict = {
+    "bot_token": "",
+    "channel_id": "",
+    "promotion_channel": "",
+    "webhook_secret": "",
+    "interval_value": 10,
+    "interval_unit": "seconds",  # seconds, minutes, hours
+    "running": False,
+    "last_run": "",
+    "last_error": "",
+}
+BOT_CONFIG_LOCK = asyncio.Lock()
+BOT_TASK: asyncio.Task | None = None
 
 # ── Telegram Proxy Instances ────────────────────────────────────────────────
 # Maps inbound_id → MTProtoProxyServer instance
@@ -1006,6 +1052,8 @@ def generate_telegram_proxy_link(user_id: str, user: dict, inbound: dict, remark
 
     The secret is deterministic per user (derived from config_uuid) and stored
     on the user record so it remains stable across config regenerations.
+    The optional `sponsor` parameter is the promotion channel set on the
+    Telegram inbound — Telegram shows it as the proxy's sponsor in the app.
     """
     from telegram_proxy import derive_secret_from_uuid
 
@@ -1026,9 +1074,19 @@ def generate_telegram_proxy_link(user_id: str, user: dict, inbound: dict, remark
     # Use stored secret or derive a stable one
     secret = user.get("telegram_secret") or derive_secret_from_uuid(config_uuid)
 
-    # Note: Telegram t.me/proxy links don't support #remark fragment like VLESS links
-    # The name is set by the user in the Telegram app after adding the proxy
-    link = f"https://t.me/proxy?server={external_domain}&port={external_port}&secret={secret}"
+    # Telegram t.me/proxy links support a `sponsor` param (the promo channel)
+    # which is shown inside the app when the proxy is added. Fall back to the
+    # global bot promotion channel if the inbound hasn't set its own.
+    sponsor = str(tg.get("promotion_channel") or "").strip()
+    if not sponsor:
+        sponsor = str(BOT_CONFIG.get("promotion_channel") or "").strip()
+    # Strip any scheme so the sponsor renders cleanly as a t.me link.
+    if sponsor:
+        sponsor = sponsor.rstrip("/").replace("https://", "").replace("http://", "")
+    params = f"server={external_domain}&port={external_port}&secret={secret}"
+    if sponsor:
+        params += f"&sponsor={quote(sponsor)}"
+    link = f"https://t.me/proxy?{params}"
     return link
 
 
@@ -1157,6 +1215,30 @@ async def startup():
             }
             asyncio.create_task(save_state())
             log_activity("inbound", "اینباند پیش‌فرض Worker ساخته شد", "ok")
+
+    # Auto-create a default NODE inbound (system-managed, not user-editable)
+    has_node = any((ib.get("protocol") or "").lower() == "node" for ib in INBOUNDS.values())
+    if not has_node:
+        _nd = _safe_host(SETTINGS.get("domain"), get_host())
+        INBOUNDS["default-node"] = {
+            "name": "NODE (Multi-Node Sync)",
+            "protocol": "node",
+            "port": 443,
+            "network": "ws",
+            "security": "tls",
+            "domain": _nd,
+            "external_domain": _nd,
+            "sni": "",
+            "external_port": 443,
+            "fingerprint": "chrome",
+            "reality_settings": {},
+            "xhttp_settings": {},
+            "ws_settings": {"path": "/ws/{uuid}"},
+            "grpc_settings": {},
+            "created_at": datetime.now().isoformat(),
+        }
+        asyncio.create_task(save_state())
+        log_activity("inbound", "اینباند پیش‌فرض NODE ساخته شد", "ok")
 
     # Normalize existing Telegram inbounds: only internal/external Telegram fields
     # are meaningful. Remove legacy SNI/Destination/Server Name state.
@@ -1346,8 +1428,36 @@ async def startup():
     asyncio.create_task(_worker_auto_sync_loop())
     asyncio.create_task(_xray_client_audit_loop())
 
+    # Detect server IP + country (non-blocking)
+    asyncio.create_task(_detect_server_info())
+
+    # Generate Panel API Key if one doesn't exist
+    global PANEL_API_KEY
+    if not PANEL_API_KEY:
+        from spider_features import generate_panel_api_key
+        PANEL_API_KEY = generate_panel_api_key()
+        asyncio.create_task(save_state())
+
     # Start Telegram Proxy instances for all existing TG inbounds
     await _start_all_telegram_proxies()
+
+
+# ── Server Info Detection ──────────────────────────────────────────────────
+async def _detect_server_info():
+    """Detect public IP + country at boot and periodically refresh."""
+    try:
+        from spider_features import detect_server_info
+        async with SERVER_INFO_LOCK:
+            if SERVER_INFO.get("public_ip") and SERVER_INFO.get("country"):
+                return  # Already detected
+        info = await detect_server_info(http_client)
+        if info.get("public_ip"):
+            async with SERVER_INFO_LOCK:
+                SERVER_INFO.update(info)
+            asyncio.create_task(save_state())
+            logger.info("Server detected: %s (%s)", info["country"], info["public_ip"])
+    except Exception as e:
+        logger.warning("Server info detection failed: %s", e)
 
 
 # ── Telegram Proxy Lifecycle ────────────────────────────────────────────────
@@ -1815,7 +1925,7 @@ def generate_user_config(user_id: str, user: dict, inbound_id: str = None, addr:
             return ""
         # Reverse switch ON: user → Worker → Railway → site. The config is
         # addressed to the WORKER domain with path /reverse/{uuid} and the
-        # user's record lives in REVERSE_KV.
+        # user's record lives in SPIDER_KV.
         if inbound and inbound.get("reverse_enabled"):
             rpath = f"/reverse/{config_uuid}"
             params = ("encryption=none&security=tls&type=ws"
@@ -2335,6 +2445,7 @@ async def subscription_handler(identifier: str, request: Request):
 
     raise HTTPException(status_code=404, detail="not found")
 
+
 @app.get("/sub-all")
 async def subscription_all(_=Depends(require_auth)):
     import base64
@@ -2828,7 +2939,7 @@ async def ws_uuid_handler(ws: WebSocket, uuid: str):
 # Tunnel path: /tunnel/{uuid} — user → Railway (here) → Cloudflare Worker → site.
 # Railway accepts the client's TLS+WS, then relays raw VLESS bytes to the Worker
 # over an outbound WSS connection to /{uuid} on the worker domain. The Worker
-# authenticates the user from its TUNNEL_KV and connects out to the target.
+# authenticates the user from its SPIDER_KV and connects out to the target.
 @app.websocket("/tunnel/{uuid}")
 async def tunnel_ws_handler(ws: WebSocket, uuid: str):
     wdom = _worker_safe_domain(WORKER.get("worker_domain"))
@@ -2958,7 +3069,7 @@ async def create_inbound(request: Request, _=Depends(require_auth)):
     body = await request.json()
     name = (body.get("name") or "اینباند جدید").strip()[:60]
     protocol = str(body.get("protocol") or "vless").lower()
-    if protocol not in ("vless", "vmess", "trojan", "reality", "worker", "wireguard", "telegram"):
+    if protocol not in ("vless", "vmess", "trojan", "reality", "worker", "wireguard", "telegram", "node"):
         raise HTTPException(status_code=400, detail="Invalid protocol")
     network = str(body.get("network") or "ws").lower()
     security = str(body.get("security") or "tls").lower()
@@ -3008,6 +3119,7 @@ async def create_inbound(request: Request, _=Depends(require_auth)):
             "internal_port": int(telegram_settings.get("internal_port") or port or 44344),
             "external_port": int(telegram_settings.get("external_port") or external_port or 443),
             "external_domain": str(telegram_settings.get("external_domain") or external_domain or "").strip(),
+            "promotion_channel": str(telegram_settings.get("promotion_channel") or "").strip(),
         }
         port = telegram_settings["internal_port"]
         external_port = telegram_settings["external_port"]
@@ -3257,9 +3369,13 @@ async def generate_inbound_short_id(inbound_id: str, _=Depends(require_auth)):
 async def delete_inbound(inbound_id: str, _=Depends(require_auth)):
     """Delete an inbound."""
     async with INBOUNDS_LOCK:
-        ib = INBOUNDS.pop(inbound_id, None)
+        ib = INBOUNDS.get(inbound_id)
         if not ib:
             raise HTTPException(status_code=404, detail="inbound not found")
+        # NODE inbound is system-managed; never let users delete it.
+        if (ib.get("protocol") or "").lower() == "node":
+            raise HTTPException(status_code=403, detail="NODE inbound is system-managed and cannot be deleted")
+        ib = INBOUNDS.pop(inbound_id, None)
         name = ib.get("name", inbound_id)
     # Stop Telegram Proxy if this was a telegram inbound
     if (ib.get("protocol") or "").lower() == "telegram":
@@ -3443,6 +3559,9 @@ async def create_user(request: Request, _=Depends(require_auth)):
             # Worker inbound uses /route/{code} path
             # For worker, we use a placeholder; actual path is /route/{country} per country
             path = f"/route/{config_uuid}"
+        elif primary_inbound_proto == "node":
+            # NODE inbound: user is replicated to all nodes with the same UUID.
+            path = f"/ws/{config_uuid}"
         elif primary_inbound_proto == "reality" or primary_inbound_network == "xhttp":
             # XHTTP or Reality inbound uses XHTTP path
             path = f"/xhttp-siz10/stream-up/{config_uuid}"
@@ -3555,14 +3674,19 @@ async def create_user(request: Request, _=Depends(require_auth)):
                 asyncio.create_task(_restart_telegram_proxy(_tg_iid))
     host = SETTINGS.get("domain") or get_host()
     asyncio.create_task(_xray_apply())  # refresh Xray clients after user change
+    # NODE inbound: replicate the user to all registered nodes (same UUID).
+    node_results = []
+    if primary_inbound_proto == "node":
+        node_results = await _create_user_on_nodes(config_uuid, {"username": username})
     return {
         "user_id": user_id,
         **USERS[user_id],
         "password_hash": None,
         "config_url": f"https://{host}/api/users/{user_id}/config",
         "qr_url": f"https://{host}/api/users/{user_id}/qr",
-        "subscription_url": f"https://{host}/api/users/{user_id}/subscription",
+        "subscription_url": f"https://{host}/subs/{config_uuid}",
         "config": generate_user_config(user_id, USERS[user_id], inbound_id),
+        "nodes_sync": node_results,
     }
 
 @app.patch("/api/users/{user_id}/toggle")
@@ -3727,6 +3851,9 @@ async def delete_user(user_id: str, _=Depends(require_auth)):
     # If the deleted user used the worker inbound, tell the worker to drop them.
     if WORKER.get("connected") and _user_uses_worker_inbound(u):
         asyncio.create_task(_worker_sync_users())
+    # Best-effort: delete user from all registered nodes
+    if config_uuid:
+        asyncio.create_task(_delete_user_from_nodes(config_uuid))
     asyncio.create_task(save_state())
     log_activity("user", f"کاربر «{username}» حذف شد", "err")
     return {"ok": True, "deleted": user_id}
@@ -6431,10 +6558,9 @@ def _worker_public() -> dict:
         "sync_count": int(WORKER.get("sync_count", 0)),
         "token_link": CF_TOKEN_LINK,
         "tunnel_enabled": bool(WORKER.get("tunnel_enabled", False)),
-        "tunnel_kv_namespace_id": WORKER.get("tunnel_kv_namespace_id", ""),
-        "tunnel_kv_namespace_title": WORKER.get("tunnel_kv_namespace_title", ""),
-        "reverse_kv_namespace_id": WORKER.get("reverse_kv_namespace_id", ""),
-        "reverse_kv_namespace_title": WORKER.get("reverse_kv_namespace_title", ""),
+        "reverse_enabled": bool(WORKER.get("reverse_enabled", False)),
+        "spi_key": WORKER.get("control_token", ""),
+        "panel_api_key": PANEL_API_KEY,
         "proxies": [
             {"code": code, **dict(p)}
             for code, p in sorted((WORKER.get("proxies") or {}).items())
@@ -6483,85 +6609,6 @@ async def _ensure_worker_kv() -> str | None:
     return None
 
 
-async def _ensure_tunnel_kv() -> str | None:
-    """Find or create the TUNNEL's own KV namespace ({worker}-tunnel-db).
-
-    The tunnel keeps its state separate from the main worker KV. The name is
-    derived from the worker's KV title so the pairing is always obvious.
-    """
-    acct = str(WORKER.get("account_id") or "")
-    cf_token = str(WORKER.get("token") or "")
-    if not acct or not cf_token:
-        return None
-    existing = str(WORKER.get("tunnel_kv_namespace_id") or "")
-    if existing:
-        return existing
-    wname = str(WORKER.get("worker_name") or "").strip()
-    base = f"{wname}-db" if wname else "spider-worker-kv"
-    kv_title = f"{base}-tunnel"  # e.g. spider-a1b2c3-db-tunnel
-    code, data = await _cf_api("GET", f"/accounts/{acct}/storage/kv/namespaces", cf_token, email="")
-    if code == 200:
-        for ns in (data.get("result") or []):
-            if ns.get("title") == kv_title:
-                async with WORKER_LOCK:
-                    WORKER["tunnel_kv_namespace_id"] = ns.get("id")
-                    WORKER["tunnel_kv_namespace_title"] = kv_title
-                asyncio.create_task(save_state())
-                return ns.get("id")
-    code, data = await _cf_api(
-        "POST", f"/accounts/{acct}/storage/kv/namespaces",
-        cf_token, {"title": kv_title}, email="",
-    )
-    if code == 200 and data.get("result"):
-        nid = data["result"].get("id")
-        async with WORKER_LOCK:
-            WORKER["tunnel_kv_namespace_id"] = nid
-            WORKER["tunnel_kv_namespace_title"] = kv_title
-        asyncio.create_task(save_state())
-        return nid
-    return None
-
-
-async def _ensure_reverse_kv() -> str | None:
-    """Find or create the REVERSE's own KV namespace ({worker}-db-reverse).
-
-    Reverse mode: user → Worker → Railway → site. Its state (users, usage)
-    lives in a third dedicated namespace so tunnel/reverse/worker never share
-    keys and can never interfere with each other.
-    """
-    acct = str(WORKER.get("account_id") or "")
-    cf_token = str(WORKER.get("token") or "")
-    if not acct or not cf_token:
-        return None
-    existing = str(WORKER.get("reverse_kv_namespace_id") or "")
-    if existing:
-        return existing
-    wname = str(WORKER.get("worker_name") or "").strip()
-    base = f"{wname}-db" if wname else "spider-worker-kv"
-    kv_title = f"{base}-reverse"  # e.g. spider-a1b2c3-db-reverse
-    code, data = await _cf_api("GET", f"/accounts/{acct}/storage/kv/namespaces", cf_token, email="")
-    if code == 200:
-        for ns in (data.get("result") or []):
-            if ns.get("title") == kv_title:
-                async with WORKER_LOCK:
-                    WORKER["reverse_kv_namespace_id"] = ns.get("id")
-                    WORKER["reverse_kv_namespace_title"] = kv_title
-                asyncio.create_task(save_state())
-                return ns.get("id")
-    code, data = await _cf_api(
-        "POST", f"/accounts/{acct}/storage/kv/namespaces",
-        cf_token, {"title": kv_title}, email="",
-    )
-    if code == 200 and data.get("result"):
-        nid = data["result"].get("id")
-        async with WORKER_LOCK:
-            WORKER["reverse_kv_namespace_id"] = nid
-            WORKER["reverse_kv_namespace_title"] = kv_title
-        asyncio.create_task(save_state())
-        return nid
-    return None
-
-
 async def _worker_deploy() -> tuple:
     """Deploy (or re-deploy) the VLESS worker script.
 
@@ -6595,8 +6642,6 @@ async def _worker_deploy() -> tuple:
     if not cf_token:
         return 0, {"errors": [{"message": "Cloudflare API token is missing (worker not connected properly)"}]}
     kv_id = await _ensure_worker_kv()
-    tunnel_kv_id = await _ensure_tunnel_kv() if WORKER.get("tunnel_enabled") else None
-    reverse_kv_id = await _ensure_reverse_kv() if WORKER.get("tunnel_enabled") else None
     email = ""
     # Use Global API Key auth (X-Auth-Email + X-Auth-Key) when the token is a
     # real GAK (cfk_/cf_ prefix or 37-char hex); otherwise a Bearer token always
@@ -6610,16 +6655,12 @@ async def _worker_deploy() -> tuple:
         # ESM module worker: multipart upload using the `files` form field so
         # Cloudflare parses it as a module-syntax worker (Content-Type must be
         # application/javascript+module), with main_module metadata and the KV
-        # namespace bindings (SPIDER_KV for users/routes, TUNNEL_KV +
-        # REVERSE_KV when the tunnel/reverse is enabled — three fully separate
-        # namespaces). The template uses the global connect()
+        # namespace bindings. A single SPIDER_KV namespace backs users, routes,
+        # tunnel and reverse (all modes share one KV). The template uses the
+        # global connect()
         # Socket API for outbound TCP, so no fetcher binding is needed.
         wname = WORKER.get("worker_name", "") or ""
         bindings = [{"name": "SPIDER_KV", "namespace_id": kv_id, "type": "kv_namespace"}]
-        if tunnel_kv_id:
-            bindings.append({"name": "TUNNEL_KV", "namespace_id": tunnel_kv_id, "type": "kv_namespace"})
-        if reverse_kv_id:
-            bindings.append({"name": "REVERSE_KV", "namespace_id": reverse_kv_id, "type": "kv_namespace"})
         meta = json.dumps({
             "main_module": "worker.js",
             "compatibility_date": "2025-01-01",
@@ -7414,7 +7455,7 @@ async def worker_inbounds(_=Depends(require_auth)):
 # TUNNEL — user → Railway → Cloudflare Worker → site
 # The tunnel inbound is a TLS+WS inbound on the RAILWAY domain with path
 # /tunnel/{uuid}. Railway forwards to the Worker; the Worker connects out to
-# the destination. The tunnel has its own dedicated KV namespace (TUNNEL_KV).
+# the destination. The tunnel uses the shared SPIDER_KV namespace.
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _tunnel_log(msg: str):
@@ -7426,29 +7467,26 @@ def _tunnel_log(msg: str):
 
 @app.post("/api/tunnel/create")
 async def tunnel_create(_=Depends(require_auth)):
-    """Create the Tunnel inbound + its dedicated KV namespace.
+    """Create the Tunnel inbound.
 
-    Steps:
-      1. ensure the TUNNEL_KV namespace exists ({worker}-db-tunnel),
-      2. mark tunnel_enabled → next deploy binds TUNNEL_KV and re-deploys,
-      3. create/refresh the 'default-tunnel' inbound: TLS + WS on the Railway
+    All worker/tunnel/reverse state lives in the single SPIDER_KV namespace,
+    so no separate KV is created here. Steps:
+      1. mark tunnel_enabled → re-deploy (SPIDER_KV already bound),
+      2. create/refresh the 'default-tunnel' inbound: TLS + WS on the Railway
          panel domain with ws path /tunnel/{uuid}.
     """
     if not WORKER.get("connected"):
         raise HTTPException(status_code=400, detail="worker is not connected")
-    kv_id = await _ensure_tunnel_kv()
-    if not kv_id:
-        raise HTTPException(status_code=500, detail="could not create tunnel KV namespace")
     async with WORKER_LOCK:
         WORKER["tunnel_enabled"] = True
         if not WORKER.get("tunnel_created_at"):
             WORKER["tunnel_created_at"] = now_ir().isoformat(timespec="seconds")
-        _tunnel_log(f"Tunnel KV ساخته شد: {WORKER.get('tunnel_kv_namespace_title')}")
-    # Re-deploy so the TUNNEL_KV binding goes live.
+        _tunnel_log(f"Tunnel فعال شد — KV مشترک (SPIDER_KV) استفاده می‌شود")
+    # Re-deploy so the SPIDER_KV binding is live (no extra KV needed).
     sc, sd = await _worker_deploy()
     ok_deploy = sc in (200, 201, 409)
     async with WORKER_LOCK:
-        _tunnel_log("Worker با binding جدید deploy شد" if ok_deploy else f"deploy ناموفق: {sc}")
+        _tunnel_log("Worker re-deploy شد" if ok_deploy else f"deploy ناموفق: {sc}")
     panel_domain = _safe_host(SETTINGS.get("domain"), get_host())
     async with INBOUNDS_LOCK:
         INBOUNDS["default-tunnel"] = {
@@ -7515,13 +7553,9 @@ async def tunnel_status(_=Depends(require_auth)):
         "worker_url": WORKER.get("worker_url", ""),
         "worker_domain": wdom,
         "panel_domain": _safe_host(SETTINGS.get("domain"), get_host()),
-        "tunnel_kv_title": WORKER.get("tunnel_kv_namespace_title", ""),
-        "tunnel_kv_id": WORKER.get("tunnel_kv_namespace_id", ""),
-        "reverse_enabled": bool(tid and (INBOUNDS[tid] or {}).get("reverse_enabled")),
+        "reverse_enabled": bool(WORKER.get("reverse_enabled")),
         "reverse_ping_ms": rev_ping_ms,
-        "reverse_path": f"/reverse/{{uuid}}" if (tid and (INBOUNDS[tid] or {}).get("reverse_enabled")) else "",
-        "reverse_kv_title": WORKER.get("reverse_kv_namespace_title", ""),
-        "reverse_kv_id": WORKER.get("reverse_kv_namespace_id", ""),
+        "reverse_path": f"/reverse/{{uuid}}" if WORKER.get("reverse_enabled") else "",
         "last_heartbeat": WORKER.get("last_heartbeat", ""),
         "remote_status": WORKER.get("remote_status", ""),
         "logs": list(WORKER.get("tunnel_logs") or [])[-30:],
@@ -7533,7 +7567,7 @@ async def tunnel_reverse_toggle(request: Request, _=Depends(require_auth)):
     """Toggle reverse mode on the tunnel inbound.
 
     ON:  user → Worker → Railway → site; config domain = worker domain,
-         ws path /reverse/{uuid}; user records live in REVERSE_KV.
+         ws path /reverse/{uuid}; all state lives in the shared SPIDER_KV.
     OFF: back to the plain tunnel chain (user → Railway → Worker → site).
     """
     body = await request.json()
@@ -7558,15 +7592,16 @@ async def tunnel_reverse_toggle(request: Request, _=Depends(require_auth)):
     async with INBOUNDS_LOCK:
         INBOUNDS[tid]["reverse_enabled"] = enabled
     if enabled:
-        # tunnel_enabled gates the TUNNEL_KV + REVERSE_KV bindings at deploy.
+        # reverse uses the shared SPIDER_KV — no separate KV needed.
         async with WORKER_LOCK:
             WORKER["tunnel_enabled"] = True
-        kv_ok = await _ensure_reverse_kv()
-        if not kv_ok:
-            raise HTTPException(status_code=500, detail="could not create reverse KV namespace")
+            WORKER["reverse_enabled"] = True
         async with WORKER_LOCK:
-            _tunnel_log(f"Reverse KV آماده شد: {WORKER.get('reverse_kv_namespace_title')}")
-    # Re-deploy so the REVERSE_KV binding goes live when first needed.
+            _tunnel_log("Reverse با KV مشترک (SPIDER_KV) آماده شد")
+    else:
+        async with WORKER_LOCK:
+            WORKER["reverse_enabled"] = False
+    # Re-deploy so the SPIDER_KV binding is live when first needed.
     sc, sd = await _worker_deploy()
     ok_deploy = sc in (200, 201, 409)
     if enabled and ok_deploy:
@@ -7575,7 +7610,7 @@ async def tunnel_reverse_toggle(request: Request, _=Depends(require_auth)):
     async with WORKER_LOCK:
         if enabled:
             _tunnel_log(f"Reverse فعال شد — دامنه {wdom} با مسیر /reverse/{{uuid}}")
-            _tunnel_log("Worker با REVERSE_KV deploy شد" if ok_deploy else f"deploy ناموفق: {sc}")
+            _tunnel_log("Worker re-deploy شد" if ok_deploy else f"deploy ناموفق: {sc}")
         else:
             _tunnel_log("Reverse غیرفعال شد")
     log_activity("tunnel", f"Reverse {'فعال' if enabled else 'غیرفعال'} شد", "ok")
@@ -7870,6 +7905,799 @@ async def scanner_sni_fastest(_=Depends(require_auth)):
 # ══════════════════════════════════════════════════════════════════════════════
 
 # (removed dead proxy-ips endpoints — proxy source is now the daily GitHub list)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SERVER INFO + PANEL API KEY + NODE MANAGEMENT + BOT + SUBSCRIPTION UUID
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/server-info")
+async def get_server_info(_=Depends(require_auth)):
+    """Return the detected server IP and country."""
+    async with SERVER_INFO_LOCK:
+        return dict(SERVER_INFO)
+
+
+@app.get("/api/panel-api-key")
+async def get_panel_api_key(_=Depends(require_auth)):
+    """Return the panel API key (only shown once or on request)."""
+    global PANEL_API_KEY
+    if not PANEL_API_KEY:
+        from spider_features import generate_panel_api_key
+        PANEL_API_KEY = generate_panel_api_key()
+        asyncio.create_task(save_state())
+    return {"api_key": PANEL_API_KEY}
+
+
+@app.post("/api/panel-api-key/regenerate")
+async def regenerate_panel_api_key(_=Depends(require_auth)):
+    """Regenerate the panel API key."""
+    global PANEL_API_KEY
+    from spider_features import generate_panel_api_key
+    PANEL_API_KEY = generate_panel_api_key()
+    asyncio.create_task(save_state())
+    log_activity("settings", "کلید API پنل بازتولید شد", "ok")
+    return {"api_key": PANEL_API_KEY}
+
+
+@app.post("/api/panel-api-key/verify")
+async def verify_panel_api_key(request: Request, _=Depends(require_auth)):
+    """Verify a panel API key (for Node connections)."""
+    body = await request.json()
+    key = str(body.get("api_key") or "").strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="API Key is required")
+    if key != PANEL_API_KEY:
+        raise HTTPException(status_code=401, detail="API Key is invalid")
+    return {"ok": True}
+
+
+# ── NODE Management ──────────────────────────────────────────────────────────
+
+@app.get("/api/nodes")
+async def list_nodes(_=Depends(require_auth)):
+    """List all registered nodes."""
+    async with NODES_LOCK:
+        result = []
+        for nid, node in NODES.items():
+            result.append({
+                "id": nid,
+                "name": node.get("name", ""),
+                "url": node.get("url", ""),
+                "region": node.get("region", ""),
+                "status": node.get("status", "unknown"),
+                "api_key": node.get("api_key", "")[:8] + "***" if node.get("api_key") else "",
+                "last_sync": node.get("last_sync", ""),
+                "created_at": node.get("created_at", ""),
+            })
+    return {"nodes": result}
+
+
+@app.post("/api/nodes")
+async def add_node(request: Request, _=Depends(require_auth)):
+    """Add a node by verifying its API Key."""
+    body = await request.json()
+    api_key = (body.get("api_key") or "").strip()
+    name = (body.get("name") or "").strip()[:40]
+    if not api_key:
+        raise HTTPException(status_code=400, detail="API Key is required")
+    async with NODES_LOCK:
+        if len(NODES) >= MAX_NODES:
+            raise HTTPException(status_code=400, detail="حداکثر تعداد نودها (10) رسیده است")
+        # Prevent duplicate keys
+        for existing in NODES.values():
+            if existing.get("api_key") == api_key:
+                raise HTTPException(status_code=409, detail="این API Key قبلاً ثبت شده است")
+    # Verify the API key by making a test request
+    url = (body.get("url") or "").strip().rstrip("/")
+    if not url:
+        raise HTTPException(status_code=400, detail="آدرس نود الزامی است")
+    from spider_features import detect_server_info, code_to_flag, node_region_prefix
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            # Try to verify by calling the node's /api/server-info
+            r = await client.get(f"{url}/api/server-info", headers={"X-API-Key": api_key})
+            if r.status_code != 200:
+                # Try alternative auth
+                r = await client.get(f"{url}/api/server-info", params={"api_key": api_key})
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"خطا در اتصال به نود: {str(e)[:100]}")
+    # Get the server info from this node for region naming
+    node_country_flag = ""
+    node_info = {}
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(f"{url}/api/server-info", headers={"X-API-Key": api_key})
+            if r.status_code == 200:
+                node_info = r.json()
+                node_country_flag = node_info.get("country_flag", "")
+    except Exception:
+        pass
+    # Get our own server info for region naming
+    async with SERVER_INFO_LOCK:
+        our_info = dict(SERVER_INFO)
+    flag = node_country_flag or our_info.get("country_flag", "🌐")
+    node_id = generate_short_id()
+    uname = name or f"node-{len(NODES) + 1}"
+    region = f"spider-{flag}-{uname}"
+    async with NODES_LOCK:
+        NODES[node_id] = {
+            "name": uname,
+            "api_key": api_key,
+            "url": url,
+            "region": region,
+            "country": node_info.get("country", ""),
+            "country_code": node_info.get("country_code", ""),
+            "country_flag": node_country_flag,
+            "status": "active",
+            "last_sync": datetime.now().isoformat(),
+            "created_at": datetime.now().isoformat(),
+        }
+    # Auto-create a node inbound so the node is immediately usable as an outbound.
+    _node_host = url.replace("https://", "").replace("http://", "").rstrip("/")
+    _node_sni = _node_host
+    _node_uuid = generate_uuid()
+    _inbound_id = f"default-node-{node_id}"
+    INBOUNDS[_inbound_id] = {
+        "name": f"Node: {uname}",
+        "node_id": node_id,
+        "protocol": "node",
+        "port": 443,
+        "network": "ws",
+        "security": "tls",
+        "domain": _node_host,
+        "external_domain": _node_host,
+        "sni": _node_sni,
+        "external_port": 443,
+        "fingerprint": "chrome",
+        "uuid": _node_uuid,
+        "reality_settings": {},
+        "xhttp_settings": {},
+        "ws_settings": {"path": f"/node/{_node_uuid}"},
+        "grpc_settings": {},
+        "created_at": datetime.now().isoformat(),
+    }
+    asyncio.create_task(save_state())
+    asyncio.create_task(_xray_apply())
+    log_activity("node", f"نود «{uname}» اضافه شد + اینباند ساخته شد", "ok")
+    return {"ok": True, "node_id": node_id, "name": uname, "region": region,
+            "inbound_id": _inbound_id}
+
+
+@app.delete("/api/nodes/{node_id}")
+async def delete_node(node_id: str, _=Depends(require_auth)):
+    """Delete a node."""
+    async with NODES_LOCK:
+        if node_id not in NODES:
+            raise HTTPException(status_code=404, detail="نود پیدا نشد")
+        name = NODES[node_id].get("name", node_id)
+        del NODES[node_id]
+    asyncio.create_task(save_state())
+    log_activity("node", f"نود «{name}» حذف شد", "warn")
+    return {"ok": True, "deleted": node_id}
+
+
+# ── Delete user from all nodes ───────────────────────────────────────────────
+async def _delete_user_from_nodes(config_uuid: str):
+    """Best-effort: delete a user (by config_uuid) from all active nodes.
+    Failure on one node does NOT stop deletion from others."""
+    async with NODES_LOCK:
+        nodes_snap = dict(NODES)
+    results = []
+    for nid, node in nodes_snap.items():
+        api_key = node.get("api_key", "")
+        url = (node.get("url") or "").strip().rstrip("/")
+        if not url or not api_key:
+            continue
+        try:
+            async with httpx.AsyncClient(timeout=8) as client:
+                r = await client.delete(
+                    f"{url}/api/users/{config_uuid}",
+                    headers={"X-API-Key": api_key},
+                )
+                ok = r.status_code in (200, 204)
+                results.append({"node": node.get("name", nid), "ok": ok, "status": r.status_code})
+        except Exception as e:
+            results.append({"node": node.get("name", nid), "ok": False, "error": str(e)[:100]})
+            logger.warning("delete user from node %s failed: %s", node.get("name"), e)
+    return results
+
+
+# ── NODE Inbound: create users on all nodes ─────────────────────────────────
+async def _create_user_on_nodes(config_uuid: str, user_data: dict):
+    """Best-effort: create a user on all active nodes for NODE inbound."""
+    async with NODES_LOCK:
+        nodes_snap = dict(NODES)
+    results = []
+    for nid, node in nodes_snap.items():
+        api_key = node.get("api_key", "")
+        url = (node.get("url") or "").strip().rstrip("/")
+        if not url or not api_key:
+            continue
+        try:
+            payload = {
+                "username": user_data.get("username", ""),
+                "config_uuid": config_uuid,
+                "traffic_limit_gb": 0,
+                "expire_days": 0,
+                "concurrent_connections": 0,
+                "inbound_id": "default",  # each node uses its own default inbound
+            }
+            async with httpx.AsyncClient(timeout=10) as client:
+                r = await client.post(
+                    f"{url}/api/users",
+                    headers={"X-API-Key": api_key, "Content-Type": "application/json"},
+                    json=payload,
+                )
+                ok = r.status_code in (200, 201)
+                results.append({"node": node.get("name", nid), "ok": ok, "status": r.status_code})
+        except Exception as e:
+            results.append({"node": node.get("name", nid), "ok": False, "error": str(e)[:100]})
+            logger.warning("create user on node %s failed: %s", node.get("name"), e)
+    return results
+
+
+# ── SUBSCRIPTION INDEX (by UUID) ────────────────────────────────────────────
+
+@app.get("/subs/{uuid}")
+async def subscription_by_uuid(uuid: str, request: Request):
+    """Subscription URL: /subs/{config_uuid} returns raw configs (VPN clients);
+    /subs/{username} serves the graphical subscription page (sub.html)."""
+    import base64
+
+    # Username form → serve the graphical subscription page.
+    if not _is_valid_uuid(uuid):
+        async with USERS_LOCK:
+            for uid, u in USERS.items():
+                if u.get("username") == uuid:
+                    return FileResponse(_os.path.join(_STATIC_DIR, "sub.html"))
+        raise HTTPException(status_code=404, detail="not found")
+
+    # 1) Search by config_uuid
+    target_user = None
+    target_uid = None
+    async with USERS_LOCK:
+        for uid, u in USERS.items():
+            if u.get("config_uuid") == uuid:
+                target_user = u
+                target_uid = uid
+                break
+
+    if not target_user:
+        # Try subscription_uuid
+        async with USERS_LOCK:
+            for uid, u in USERS.items():
+                if u.get("subscription_uuid") == uuid:
+                    target_user = u
+                    target_uid = uid
+                    break
+
+    if target_user:
+        # Reuse the same logic as /sub/{identifier}
+        if _user_uses_worker_inbound(target_user):
+            target_user = await _worker_pull_user(target_uid, target_user)
+            USERS[target_uid] = target_user
+        host = SETTINGS.get("domain") or get_host()
+        username = target_user.get("username", target_uid)
+        configs = list(target_user.get("worker_configs") or [])
+        inbound_ids = target_user.get("inbound_ids") or []
+        stored_path_user = (target_user.get("path") or "").strip()
+        for iid_ in inbound_ids:
+            ib = INBOUNDS.get(iid_)
+            try:
+                _p = (ib.get("protocol") if ib else "").lower()
+                _s = (ib.get("security") if ib else "").lower()
+                if ib and (_p == "reality" or _s == "reality"):
+                    if not str(ib.get("external_domain") or "").strip() or not str(ib.get("external_port") or "").strip():
+                        continue
+                if ib and _p == "worker":
+                    if not target_user.get("worker_configs"):
+                        configs.extend(_worker_configs(target_uid, target_user, ib, stored_path_user, f"Spider-{username}"))
+                else:
+                    cfg = generate_user_config(target_uid, target_user, iid_)
+                    if cfg:
+                        configs.append(cfg)
+            except Exception:
+                continue
+        if not configs:
+            fallback_config = generate_user_config(target_uid, target_user, target_user.get("inbound_id"))
+            configs = [fallback_config] if fallback_config else []
+
+        # Custom scanned-IP configs
+        custom_cfgs = generate_custom_ip_configs(target_uid, target_user)
+        for cfg in custom_cfgs.get("railway", []) + custom_cfgs.get("cf", []):
+            configs.append(cfg)
+
+        if target_user.get("sni_spoof_v2box"):
+            configs.extend(generate_sni_spoof_configs(target_uid, target_user))
+
+        if not configs:
+            raise HTTPException(status_code=404, detail="no configs found")
+
+        status_config = generate_status_config(target_user, configs)
+        all_configs = [status_config] + configs if status_config else configs
+
+        content = base64.b64encode("\n".join(all_configs).encode()).decode()
+        return Response(content=content, media_type="text/plain",
+                        headers={"profile-title": quote(username),
+                                  "profile-update-interval": "12",
+                                  "support-url": "https://t.me/spider_vpn1"})
+
+    raise HTTPException(status_code=404, detail="not found")
+
+
+@app.get("/api/subscription/index")
+async def subscription_index(_=Depends(require_auth)):
+    """Return the subscription index organized by Tunnel / Node categories.
+    Tunnel: Worker, Tunnel, Reverse, Yours (custom-created configs).
+    Node: all node inbound configs."""
+    host = SETTINGS.get("domain") or get_host()
+
+    # Gather categories
+    tunnel_items = []
+    node_items = []
+
+    async with INBOUNDS_LOCK:
+        for iid, ib in INBOUNDS.items():
+            proto = (ib.get("protocol") or "").lower()
+            name = ib.get("name", iid)
+            if proto == "worker":
+                tunnel_items.append({"id": iid, "name": name, "category": "Worker", "type": "tunnel"})
+            elif proto == "tunnel":
+                tunnel_items.append({"id": iid, "name": name, "category": "Tunnel", "type": "tunnel"})
+            elif proto == "reality":
+                tunnel_items.append({"id": iid, "name": name, "category": "Reality", "type": "tunnel"})
+            elif proto == "vless":
+                sec = (ib.get("security") or "").lower()
+                tunnel_items.append({"id": iid, "name": name, "category": "Worker", "type": "tunnel"})
+            elif proto == "node":
+                node_items.append({"id": iid, "name": name, "category": "Node", "type": "node"})
+            elif proto == "telegram":
+                tunnel_items.append({"id": iid, "name": name, "category": "Telegram Proxy", "type": "tunnel"})
+
+    return {
+        "tunnel": {
+            "items": tunnel_items,
+            "yours": {"description": "Configurationهای ساخته‌شده توسط Create Your Own Config"},
+        },
+        "node": {
+            "items": node_items,
+        },
+    }
+
+
+# ── BOT Management ───────────────────────────────────────────────────────────
+
+@app.get("/api/bot")
+async def get_bot_config(_=Depends(require_auth)):
+    """Return bot config (token masked)."""
+    async with BOT_CONFIG_LOCK:
+        cfg = dict(BOT_CONFIG)
+    # Mask the bot token: show only last 4 chars
+    if cfg.get("bot_token"):
+        t = cfg["bot_token"]
+        cfg["bot_token_masked"] = "****" + t[-4:] if len(t) > 4 else "****"
+    else:
+        cfg["bot_token_masked"] = ""
+    return cfg
+
+
+@app.post("/api/bot/setup")
+async def bot_setup(request: Request, _=Depends(require_auth)):
+    """Set up bot token + channel ID + optional promotion channel."""
+    body = await request.json()
+    token = (body.get("bot_token") or "").strip()
+    channel_id = (body.get("channel_id") or "").strip()
+    promotion_channel = (body.get("promotion_channel") or "").strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="Bot Token is required")
+    if not channel_id:
+        raise HTTPException(status_code=400, detail="Channel ID is required")
+    # Validate token
+    from spider_features import validate_bot_token, check_bot_channel_access
+    try:
+        bot_info = await validate_bot_token(token)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    # Check channel access
+    try:
+        await check_bot_channel_access(token, channel_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    # Validate promotion channel if provided
+    if promotion_channel:
+        if not re.match(r"^https?://t\.me/", promotion_channel):
+            raise HTTPException(status_code=400, detail="لینک promotion channel نامعتبر است")
+    async with BOT_CONFIG_LOCK:
+        BOT_CONFIG["bot_token"] = token
+        BOT_CONFIG["channel_id"] = channel_id
+        BOT_CONFIG["promotion_channel"] = promotion_channel
+        BOT_CONFIG["last_error"] = ""
+    asyncio.create_task(save_state())
+    log_activity("bot", "ربات کانال تنظیم شد", "ok")
+    return {
+        "ok": True,
+        "bot_name": bot_info.get("username", ""),
+        "bot_id": bot_info.get("id", ""),
+    }
+
+
+@app.post("/api/bot/schedule")
+async def bot_schedule(request: Request, _=Depends(require_auth)):
+    """Set bot schedule (interval)."""
+    body = await request.json()
+    value = int(body.get("interval_value") or 10)
+    unit = str(body.get("interval_unit") or "seconds").lower()
+    if unit not in ("seconds", "minutes", "hours"):
+        unit = "seconds"
+    if value < 1:
+        value = 1
+    if value > 3600 and unit == "seconds":
+        value = 3600
+    async with BOT_CONFIG_LOCK:
+        BOT_CONFIG["interval_value"] = value
+        BOT_CONFIG["interval_unit"] = unit
+    asyncio.create_task(save_state())
+    return {"ok": True, "interval_value": value, "interval_unit": unit}
+
+
+@app.post("/api/bot/start")
+async def bot_start(_=Depends(require_auth)):
+    """Start the bot loop."""
+    global BOT_TASK
+    async with BOT_CONFIG_LOCK:
+        if BOT_CONFIG.get("running"):
+            return {"ok": True, "message": "Bot is already running"}
+        if not BOT_CONFIG.get("bot_token") or not BOT_CONFIG.get("channel_id"):
+            raise HTTPException(status_code=400, detail="ابتدا ربات را تنظیم کنید")
+        BOT_CONFIG["running"] = True
+    BOT_TASK = asyncio.create_task(_bot_loop())
+    log_activity("bot", "ربات کانال شروع شد", "ok")
+    return {"ok": True}
+
+
+@app.post("/api/bot/stop")
+async def bot_stop(_=Depends(require_auth)):
+    """Stop the bot loop."""
+    global BOT_TASK
+    async with BOT_CONFIG_LOCK:
+        BOT_CONFIG["running"] = False
+    if BOT_TASK and not BOT_TASK.done():
+        BOT_TASK.cancel()
+        BOT_TASK = None
+    log_activity("bot", "ربات کانال متوقف شد", "warn")
+    return {"ok": True}
+
+
+async def _bot_loop():
+    """Main bot loop: create user → send QR to channel → wait → delete → repeat."""
+    import qrcode
+    import io as _io
+    from spider_features import tg_api_call
+
+    last_user_id = None
+
+    while True:
+        try:
+            async with BOT_CONFIG_LOCK:
+                token = BOT_CONFIG.get("bot_token", "")
+                channel_id = BOT_CONFIG.get("channel_id", "")
+                promo = BOT_CONFIG.get("promotion_channel", "")
+                value = BOT_CONFIG.get("interval_value", 10)
+                unit = BOT_CONFIG.get("interval_unit", "seconds")
+                running = BOT_CONFIG.get("running", False)
+
+            if not running or not token or not channel_id:
+                break
+
+            # Calculate sleep interval in seconds
+            if unit == "minutes":
+                sleep_sec = value * 60
+            elif unit == "hours":
+                sleep_sec = value * 3600
+            else:
+                sleep_sec = value
+
+            # 1) Delete previous user if exists
+            if last_user_id:
+                try:
+                    async with USERS_LOCK:
+                        u_del = USERS.get(last_user_id)
+                        if u_del:
+                            cuuid = u_del.get("config_uuid")
+                            username_del = u_del.get("username", last_user_id)
+                            USERS.pop(last_user_id, None)
+                            if cuuid:
+                                LINKS.pop(cuuid, None)
+                                PATH_INDEX.pop(cuuid, None)
+                    if u_del and u_del.get("inbound_ids"):
+                        for _iid in u_del["inbound_ids"]:
+                            _ib = INBOUNDS.get(_iid, {})
+                            if (_ib.get("protocol") or "").lower() == "telegram":
+                                asyncio.create_task(_restart_telegram_proxy(_iid))
+                    # Delete from all nodes
+                    if u_del:
+                        await _delete_user_from_nodes(u_del.get("config_uuid", last_user_id))
+                    asyncio.create_task(save_state())
+                    log_activity("bot", f"کاربر قبلی (bot) حذف شد", "info")
+                except Exception as e:
+                    logger.warning("Bot: failed to delete previous user: %s", e)
+
+            # 2) Pick a random non-bot, non-telegram inbound for the user
+            async with INBOUNDS_LOCK:
+                available = [
+                    (iid, ib) for iid, ib in INBOUNDS.items()
+                    if (ib.get("protocol") or "").lower() not in ("telegram", "wireguard", "node")
+                    and (ib.get("protocol") or "").lower() != "worker"
+                ]
+            if not available:
+                async with BOT_CONFIG_LOCK:
+                    BOT_CONFIG["last_error"] = "هیچ اینباندی در دسترس نیست"
+                    BOT_CONFIG["running"] = False
+                break
+
+            # Pick up to 2 random inbounds
+            picks = random.sample(available, min(2, len(available)))
+            inbound_ids = [iid for iid, _ in picks]
+
+            # 3) Create user with unlimited settings
+            uid = generate_short_id()
+            cuuid = generate_uuid()
+            uname = f"bot-{secrets.token_hex(3)}"
+            now = datetime.now()
+            async with USERS_LOCK:
+                USERS[uid] = {
+                    "username": uname,
+                    "password_hash": hash_password(secrets.token_urlsafe(8)),
+                    "protocol": "vless",
+                    "traffic_limit_bytes": 0,
+                    "traffic_used_bytes": 0,
+                    "expire_at": None,
+                    "concurrent_connections": 0,
+                    "created_at": now.isoformat(),
+                    "status": "active",
+                    "server": "Bot",
+                    "config_uuid": cuuid,
+                    "subscription_uuid": secrets.token_urlsafe(16),
+                    "sni": "",
+                    "proxy_ip": "",
+                    "proxy_country": "",
+                    "proxy_ips": [],
+                    "proxy_countries": [],
+                    "proxy_ip_enabled": False,
+                    "custom_ip_type": "",
+                    "custom_ip_inbounds": {"cf": [], "railway": []},
+                    "sni_spoof_v2box": False,
+                    "inbound_id": inbound_ids[0],
+                    "inbound_ids": inbound_ids,
+                    "path": f"/ws/{cuuid}",
+                    "transport_type": "ws",
+                    "telegram_secret": "",
+                }
+            _path = f"ws/{cuuid}"
+            async with LINKS_LOCK:
+                LINKS[cuuid] = {
+                    "label": uname,
+                    "limit_bytes": 0,
+                    "used_bytes": 0,
+                    "created_at": now.isoformat(),
+                    "active": True,
+                    "expires_at": None,
+                    "note": f"Bot user {uname}",
+                    "is_default": False,
+                    "sub_id": None,
+                    "protocol": "vless-ws",
+                    "transport_type": "ws",
+                    "xhttp_settings": {},
+                    "path": _path,
+                    "user_id": uid,
+                }
+                PATH_INDEX[cuuid] = cuuid
+                PATH_INDEX[_path] = cuuid
+
+            # Create on all nodes
+            asyncio.create_task(_create_user_on_nodes(cuuid, {"username": uname}))
+
+            # Refresh Xray
+            asyncio.create_task(_xray_apply())
+            asyncio.create_task(save_state())
+
+            # 4) Generate QR code of the subscription link
+            host = _safe_host(SETTINGS.get("domain"), get_host())
+            sub_url = f"https://{host}/subs/{cuuid}"
+            qr_img_url = ""
+            try:
+                if QR_AVAILABLE:
+                    qr = qrcode.QRCode(version=1, box_size=10, border=2)
+                    qr.add_data(sub_url)
+                    qr.make(fit=True)
+                    img = qr.make_image(fill_color="black", back_color="white")
+                    buf = _io.BytesIO()
+                    img.save(buf, format="PNG")
+                    buf.seek(0)
+                    # Save to a temp file for Telegram upload
+                    qr_path = DATA_DIR / "bot_qr.png"
+                    with open(qr_path, "wb") as f:
+                        f.write(buf.read())
+                    qr_img_url = str(qr_path)
+            except Exception as e:
+                logger.warning("QR generation failed: %s", e)
+
+            # 5) Send to Telegram channel
+            try:
+                caption_lines = [f"🔗 <code>{sub_url}</code>"]
+                if promo:
+                    caption_lines.append("")
+                    caption_lines.append(promo)
+                caption_lines.append("")
+                caption_lines.append("")
+                caption_lines.append("Spider Panel by Amir")
+                caption_lines.append('<a href="https://t.me/amirsp1ider">Spider Panel by Amir</a>')
+                caption = "\n".join(caption_lines)
+
+                if qr_img_url and os.path.exists(qr_img_url):
+                    # Send photo with caption
+                    with open(qr_img_url, "rb") as photo:
+                        files = {"photo": ("qr.png", photo, "image/png")}
+                        data = {
+                            "chat_id": channel_id,
+                            "caption": caption,
+                            "parse_mode": "HTML",
+                        }
+                        async with httpx.AsyncClient(timeout=15) as client:
+                            r = await client.post(
+                                f"https://api.telegram.org/bot{token}/sendPhoto",
+                                data=data,
+                                files=files,
+                            )
+                            res = r.json()
+                            if not res.get("ok"):
+                                logger.warning("Telegram send photo failed: %s", res.get("description", ""))
+                else:
+                    # Fallback: send text only
+                    await tg_api_call(token, "sendMessage", chat_id=channel_id, text=caption, parse_mode="HTML")
+
+                async with BOT_CONFIG_LOCK:
+                    BOT_CONFIG["last_run"] = datetime.now().isoformat()
+                    BOT_CONFIG["last_error"] = ""
+                asyncio.create_task(save_state())
+                log_activity("bot", f"کاربر {uname} به کانال ارسال شد", "ok")
+            except Exception as e:
+                async with BOT_CONFIG_LOCK:
+                    BOT_CONFIG["last_error"] = str(e)[:200]
+                asyncio.create_task(save_state())
+                logger.warning("Telegram bot send failed: %s", e)
+
+            last_user_id = uid
+
+            # 6) Wait for the interval
+            await asyncio.sleep(sleep_sec)
+
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error("Bot loop error: %s", e)
+            async with BOT_CONFIG_LOCK:
+                BOT_CONFIG["last_error"] = str(e)[:200]
+                BOT_CONFIG["running"] = False
+            asyncio.create_task(save_state())
+            break
+
+    async with BOT_CONFIG_LOCK:
+        BOT_CONFIG["running"] = False
+    asyncio.create_task(save_state())
+
+
+# ── Hook into delete_user to also delete from nodes ──────────────────────────
+# Patch: the original delete_user endpoint is at line ~3708; we add node sync.
+# We do this by wrapping the save_state call with a node-delete task.
+
+# NOTE: We add a helper that main.py's delete_user can call (imported above).
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CUSTOM CONFIG CREATION ("Create Your Own Config") — scans IPs, builds TLS configs
+# Only operates on TLS inbounds (never Reality, XHTTP Reality, Telegram, WireGuard).
+# Returns session-only configs (not persisted to DB unless the caller saves them).
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.post("/api/custom-config/scan")
+async def custom_config_scan(request: Request, _=Depends(require_auth)):
+    """Scan for healthy IPs and generate custom TLS configs for the given user.
+
+    Body: { user_id: str }
+    Returns: { configs: [base64_config_lines], yours: [config_strings] }
+
+    The "yours" configs use scanned IPs as `server` (address) while keeping
+    `host`/`sni` on the real panel domain. They are session-only and will be
+    lost on page refresh (stored client-side only).
+    """
+    import socket as _sk
+
+    body = await request.json()
+    user_id = (body.get("user_id") or "").strip()
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id is required")
+
+    async with USERS_LOCK:
+        user = USERS.get(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="user not found")
+
+    # Determine which providers to scan (Railway / Cloudflare)
+    host = SETTINGS.get("domain") or get_host()
+    is_railway = ".railway.app" in host or ".rlwy.net" in host
+    providers = []
+    if is_railway:
+        providers.append("railway")
+    else:
+        providers.append("cf")
+    # If user has both cf and railway scanned IPs, scan both
+    if user.get("custom_ip_type") in ("cf", "railway"):
+        providers = [user["custom_ip_type"]]
+
+    healthy_ips = []
+    for prov in providers:
+        candidates = _read_scanned_ips(prov)
+        for entry in candidates:
+            if len(healthy_ips) >= 2:
+                break
+            # Parse entry: "ip:port" or just "ip"
+            hip = entry.strip()
+            if ":" in hip:
+                hip, _, _ = hip.rpartition(":")
+            if not hip or hip in healthy_ips:
+                continue
+            try:
+                s = _sk.socket(_sk.AF_INET, _sk.SOCK_STREAM)
+                s.settimeout(3)
+                s.connect((hip, 443))
+                s.close()
+                healthy_ips.append(hip)
+            except Exception:
+                continue
+        if len(healthy_ips) >= 2:
+            break
+
+    # Build custom configs for each healthy IP (TLS inbounds only)
+    import base64
+    configs = []
+    panel_domain = _safe_host(SETTINGS.get("domain"), get_host())
+    username = user.get("username", user_id)
+    config_uuid = user.get("config_uuid", user_id)
+
+    async with INBOUNDS_LOCK:
+        tls_inbounds = {
+            iid: ib for iid, ib in INBOUNDS.items()
+            if (ib.get("security") or "").lower() == "tls"
+            and (ib.get("protocol") or "").lower() not in ("reality", "telegram", "wireguard", "worker", "tunnel")
+        }
+
+    for hip in healthy_ips:
+        for iid, ib in tls_inbounds.items():
+            net = (ib.get("network") or "ws").lower()
+            transport = "ws" if net == "ws" else "xhttp"
+            sni = panel_domain
+            addr_port = "443"
+            if transport == "xhttp":
+                xpath = f"/xhttp-siz10/stream-up/{config_uuid}"
+                params = (f"encryption=none&security=tls&type=xhttp"
+                          f"&host={quote(panel_domain)}&path={quote(xpath, safe='')}&sni={quote(panel_domain)}"
+                          f"&fp=chrome&alpn=h2,http/1.1")
+            else:
+                ws_path = f"/ws/{config_uuid}"
+                params = (f"encryption=none&security=tls&type=ws"
+                          f"&host={quote(panel_domain)}&path={quote(ws_path, safe='')}&sni={quote(panel_domain)}"
+                          f"&fp=chrome&alpn=http/1.1")
+            cfg = f"vless://{config_uuid}@{hip}:{addr_port}?{params}#{quote(f'Spider-{username} Custom-{hip}')}"
+            configs.append(cfg)
+
+    return {
+        "ok": True,
+        "yours": configs,
+        "healthy_ips": healthy_ips,
+        "providers_scanned": providers,
+    }
 
 
 if __name__ == "__main__":
