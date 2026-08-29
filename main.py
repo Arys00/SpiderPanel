@@ -618,8 +618,12 @@ def _gen_reality_settings() -> dict:
             "mldsa65_verify": verify,
         }
     # Xray not available: fall back to a Python x25519 keypair so the panel
-    # still produces a working config shape.
-    mldsa_seed = secrets.token_bytes(64)
+    # still produces a working config shape. ML-DSA-65 seed is 32 bytes and
+    # must be URL-safe base64 WITHOUT padding — the exact format xray-core
+    # (26.3.27) emits and accepts. A 64-byte standard-base64 seed makes Xray
+    # reject the config with "invalid mldsa65Seed".
+    mldsa_seed = secrets.token_bytes(32)
+    mldsa_seed_b64 = b64.urlsafe_b64encode(mldsa_seed).decode().rstrip("=")
     try:
         priv_key, pub_key = _xray_x25519_keypair()
         return {
@@ -628,14 +632,14 @@ def _gen_reality_settings() -> dict:
             "short_id": secrets.token_hex(5)[:10],
             "spiderx": "/",
             "dest": "is1-ssl.mzstatic.com:443",
-            "mldsa65_seed": b64.b64encode(mldsa_seed).decode(),
+            "mldsa65_seed": mldsa_seed_b64,
             "mldsa65_verify": _gen_ml_dsa65(mldsa_seed),
         }
     except ImportError:
         return {
             "private_key": "", "public_key": "", "short_id": "5a3ff5a13d",
             "spiderx": "/", "dest": "is1-ssl.mzstatic.com:443",
-            "mldsa65_seed": b64.b64encode(mldsa_seed).decode(),
+            "mldsa65_seed": mldsa_seed_b64,
             "mldsa65_verify": _gen_ml_dsa65(mldsa_seed),
         }
 
