@@ -411,7 +411,7 @@ input,select,button,textarea{font-family:inherit}
 .scn-accordion .scn-pane{display:none;border-top:1px solid var(--border);padding:13px}
 .scn-accordion .scn-acc-item.open .scn-pane{display:block}
 .inbound-load-error{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;line-height:1.8}
-.api-key-eye{min-width:42px;font-size:18px;line-height:1}
+.secret-eye-svg{width:18px;height:18px;display:block}.secret-eye-svg .eye-slash{opacity:.95;transition:opacity .2s ease}.secret-eye-btn[aria-pressed="true"] .eye-slash,.api-key-eye[aria-pressed="true"] .eye-slash{opacity:0}.secret-eye-btn,.api-key-eye{display:inline-flex;align-items:center;justify-content:center}.api-key-eye{min-width:42px;font-size:18px;line-height:1}
 .secret-field{display:flex;align-items:center;gap:7px}
 .secret-field input{flex:1;min-width:0}
 .secret-field .btn{min-width:42px;height:42px;padding:0}
@@ -1476,7 +1476,7 @@ tr{animation:fadeIn .3s ease}
             <div style="display:flex;gap:8px;width:100%;align-items:center">
               <input type="password" id="panel-api-key-input" dir="ltr" readonly style="flex:1;background:var(--bg2);font-family:monospace;font-size:12px">
               <button type="button" class="btn btn-sm btn-g api-key-eye" id="panel-api-key-toggle" onclick="toggleApiKeyVis()" title="Show API key" aria-label="Show API key" aria-pressed="false">
-                <span id="panel-api-key-eye" aria-hidden="true">◉</span>
+                <span id="panel-api-key-eye" aria-hidden="true"><svg class="secret-eye-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.7"/><path class="eye-slash" d="M4 4l16 16"/></svg></span>
               </button>
               <button class="btn btn-sm btn-g" onclick="copyApiKey()" title="Copy">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
@@ -1557,8 +1557,8 @@ tr{animation:fadeIn .3s ease}
   <div class="modal-t"><span class="glow" data-i18n="createUser">ایجاد کاربر جدید</span></div>
   <form onsubmit="submitCreateUser(event)">
     <div class="f-r">
-      <div class="f-g"><label data-i18n="username">نام کاربری</label><input type="text" id="cu-name" required></div>
-      <div class="f-g"><label data-i18n="conn">اتصال همزمان</label><input type="number" id="cu-conn" placeholder="∞ نامحدود"></div>
+      <div class="f-g"><label data-i18n="username">نام کاربری</label><input type="text" id="cu-name" placeholder="خالی = نام تصادفی"></div>
+      <div class="f-g"><label data-i18n="conn">اتصال همزمان</label><input type="number" id="cu-conn" min="0" placeholder="خالی = نامحدود"></div>
     </div>
     <div class="f-r">
       <div class="f-g"><label data-i18n="volume">حجم</label><input type="number" id="cu-vol" placeholder="∞ نامحدود"></div>
@@ -1593,7 +1593,7 @@ tr{animation:fadeIn .3s ease}
     <div class="f-g"><label data-i18n="username">نام کاربری</label><input type="text" id="eu-name" required></div>
     <div class="f-g"><label data-i18n="volEdit">حجم (GB - ۰=نامحدود)</label><input type="number" id="eu-vol" value="20"></div>
     <div class="f-g"><label data-i18n="daysEdit">روز اعتبار (۰=نامحدود)</label><input type="number" id="eu-exp" value="30"></div>
-    <div class="f-g"><label data-i18n="conn">اتصال همزمان</label><input type="number" id="eu-conn" value="2"></div>
+    <div class="f-g"><label data-i18n="conn">اتصال همزمان</label><input type="number" id="eu-conn" min="0" value="0" placeholder="۰ = نامحدود"></div>
     <div class="f-g"><label data-i18n="status">وضعیت</label><select id="eu-status"><option value="active" data-i18n="active">فعال</option><option value="inactive" data-i18n="inactive">غیرفعال</option></select></div>
     <div class="f-g" style="display:flex;align-items:center;gap:8px">
       <input type="checkbox" id="eu-reset" style="width:auto">
@@ -2294,7 +2294,7 @@ function renderUsers() {
     html += '<div class="sp-v6-body"><div class="u-card-traffic" style="padding-top:12px">' + _userTraffic(u) + '</div>';
     html += '<div class="u-card-meta" style="margin-top:10px">';
     html += '<span><i>' + t('expiry') + '</i><b>' + _userExp(u) + '</b></span>';
-    html += '<span><i>' + t('connTh') + '</i><b>' + (u.concurrent_connections || '۲') + '</b></span>';
+    html += '<span><i>' + t('connTh') + '</i><b>' + (Number(u.concurrent_connections) === 0 ? '∞' : (u.concurrent_connections ?? '∞')) + '</b></span>';
     html += '<span><i>' + t('inbounds') + '</i><b class="badge badge-b">' + esc(inboundName) + '</b></span>';
     if (u.proxy_country) html += '<span><i>IP</i><b><span class="badge badge-p">' + esc(u.proxy_country) + '</span></b></span>';
     html += '</div><div class="u-card-actions" style="margin-top:10px">' + _userActions(u) + '</div></div></div>';
@@ -2329,7 +2329,6 @@ function _userActions(u) {
     '<button class="btn btn-sm btn-g" onclick="viewSub(\'' + u.username + '\')" title="Sub Link">'+iconLink+'</button>' +
     '<button class="btn btn-sm btn-b" onclick="viewQR(\'' + u.user_id + '\')" title="QR Code">'+iconQr+'</button>' +
     '<button class="btn btn-sm btn-b" onclick="editUser(\'' + u.user_id + '\')" title="Edit">'+iconEdit+'</button>' +
-    '<button class="btn btn-sm btn-p" onclick="createCustomConfig(\'' + u.user_id + '\')" title="Custom Config" style="font-size:10px;padding:4px 8px">⚡ Custom</button>' +
     '<button class="btn btn-sm btn-r" onclick="toggleUser(\'' + u.user_id + '\')" title="Toggle">'+iconToggle+'</button>' +
     '<button class="btn btn-sm btn-r" onclick="deleteUser(\'' + u.user_id + '\')" title="Delete">'+iconTrash+'</button>' +
   '</div>';
@@ -2340,7 +2339,7 @@ function _userRow(u) {
   var r = '<td><strong>' + esc(u.username) + '</strong></td>';
   r += '<td>' + _userTraffic(u) + '</td>';
   r += '<td>' + _userExp(u) + '</td>';
-  r += '<td>' + (u.concurrent_connections || '۲') + '</td>';
+  r += '<td>' + (Number(u.concurrent_connections) === 0 ? '∞' : (u.concurrent_connections ?? '∞')) + '</td>';
   r += '<td>' + _userStatus(u) + '</td>';
   r += '<td><span class="badge badge-b">' + esc(inboundName) + '</span>' + (u.proxy_country ? ' <span class="badge badge-p">' + esc(u.proxy_country) + '</span>' : '') + '</td>';
   r += '<td>' + _userActions(u) + '</td>';
@@ -2356,7 +2355,7 @@ function _userCard(u) {
     '<div class="u-card-traffic">' + _userTraffic(u) + '</div>' +
     '<div class="u-card-meta">' +
       '<span><i>' + t('expiry') + '</i><b>' + expText + '</b></span>' +
-      '<span><i>' + t('connTh') + '</i><b>' + (u.concurrent_connections || '۲') + '</b></span>' +
+      '<span><i>' + t('connTh') + '</i><b>' + (Number(u.concurrent_connections) === 0 ? '∞' : (u.concurrent_connections ?? '∞')) + '</b></span>' +
       '<span><i>' + t('inbounds') + '</i><b class="badge badge-b">' + esc(inboundName) + '</b></span>' +
       (countryBadge ? '<span><i>IP</i><b>' + countryBadge + '</b></span>' : '') +
     '</div>' +
@@ -2428,7 +2427,7 @@ async function submitCreateUser(e) {
   var firstCountry = allCountries[0] || '';
   try {
     var r = await api('/api/users', {method: 'POST', body: {
-      username: $id('cu-name').value,
+      username: $id('cu-name').value.trim(),
       traffic_limit_gb: vu === 'GB' ? v : v / 1024,
       expire_days: eu === 'months' ? ex * 30 : ex,
       concurrent_connections: parseInt($id('cu-conn').value) || 0,
@@ -2528,7 +2527,7 @@ function editUser(uid) {
   $id('eu-vol').value = (u.traffic_limit_bytes ? (u.traffic_limit_bytes / 1073741824).toFixed(0) : '0');
   $id('eu-exp').value = u.expire_at ? Math.ceil((new Date(u.expire_at) - new Date()) / 86400000) : 0;
   $id('eu-status').value = u.status || 'active';
-  $id('eu-conn').value = u.concurrent_connections || 2;
+  $id('eu-conn').value = Number(u.concurrent_connections) === 0 || u.concurrent_connections == null ? '' : u.concurrent_connections;
   renderEditInboundPicker(u);
   openModal('mod-edit-user');
 }
@@ -2556,7 +2555,7 @@ async function submitEditUser(e) {
       username: $id('eu-name').value,
       traffic_limit_gb: $id('eu-vol').value ? parseFloat($id('eu-vol').value) : 0,
       expire_days: parseInt($id('eu-exp').value) || 0,
-      concurrent_connections: parseInt($id('eu-conn').value) || 2,
+      concurrent_connections: parseInt($id('eu-conn').value, 10) || 0,
       status: $id('eu-status').value,
       reset_traffic: $id('eu-reset') ? $id('eu-reset').checked : false,
       fake_sni: fakeSni,
@@ -2853,6 +2852,7 @@ function editInbound(iid) {
     $id('ib-tg-intport').value = tg.internal_port || ib.port || 44344;
     $id('ib-tg-extport').value = tg.external_port || ib.external_port || 443;
     $id('ib-tg-domain').value = tg.external_domain || ib.external_domain || '';
+    if ($id('ib-tg-promo')) $id('ib-tg-promo').value = tg.promotion_channel || '';
     $id('ib-submit').textContent = t('updateInbound');
     onProtocolChange();
     openModal('mod-inbound');
@@ -3106,7 +3106,7 @@ wireModalCloseButtons();
 // $id is declared once at the top of this script. Keep this section for helpers only.
 
 // ─── Helpers ───
-function esc(s) { return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function toFa(n) { return String(n).replace(/\d/g, function(d) { return '۰۱۲۳۴۵۶۷۸۹'[d]; }); }
 function fmtBytes(b) {
   if (!b || b <= 0) return '0 B';
@@ -4787,7 +4787,7 @@ function toggleSecretInput(id, btn) {
   if (!inp) return;
   var visible = inp.type === 'password';
   inp.type = visible ? 'text' : 'password';
-  if (btn) { btn.textContent = visible ? '◉' : '◌'; btn.title = visible ? 'Hide secret' : 'Show secret'; btn.setAttribute('aria-label', btn.title); }
+  if (btn) { btn.title = visible ? 'Hide secret' : 'Show secret'; btn.setAttribute('aria-label', btn.title); btn.setAttribute('aria-pressed', visible ? 'true' : 'false'); }
 }
 
 // ── Panel API Key ──
@@ -4803,9 +4803,7 @@ async function loadApiKey() {
 }
 function updateApiKeyEye(visible) {
   var btn = $id('panel-api-key-toggle');
-  var icon = $id('panel-api-key-eye');
   if (btn) { btn.setAttribute('aria-pressed', visible ? 'true' : 'false'); btn.title = visible ? 'Hide API key' : 'Show API key'; btn.setAttribute('aria-label', btn.title); }
-  if (icon) icon.textContent = visible ? '◉' : '◌';
 }
 function toggleApiKeyVis() {
   var inp = $id('panel-api-key-input');
@@ -4915,7 +4913,6 @@ async function loadBotConfig() {
       + '<span class="set-lbl">وضعیت ربات</span>' + statusBadge + '</div>'
       + '<div class="f-g" style="margin-bottom:12px"><label>Telegram Bot Token</label><input type="password" id="bot-token" dir="ltr" placeholder="123456:ABC-defGHI..." value="' + (b.bot_token_masked || '') + '"></div>'
       + '<div class="f-g" style="margin-bottom:12px"><label>Channel ID</label><input type="text" id="bot-channel" dir="ltr" placeholder="-1001234567890" value="' + esc(b.channel_id || '') + '"></div>'
-      + '<div class="f-g" style="margin-bottom:12px"><label>Promotion Channel</label><input type="url" id="bot-promo" dir="ltr" placeholder="https://t.me/yourchannel" value="' + esc(b.promotion_channel || '') + '"></div>'
       + '<div class="schedule-editor">'
       + '<div class="schedule-title"><span>زمان‌بندی ارسال</span><small>فاصله اجرای خودکار را مشخص کنید</small></div>'
       + '<div class="schedule-fields">'
@@ -4941,8 +4938,7 @@ async function loadBotConfig() {
 async function botSetupSubmit() {
   var token = $id('bot-token').value.trim();
   var channel = $id('bot-channel').value.trim();
-  var promo = $id('bot-promo').value.trim();
-  var payload = {channel_id: channel, promotion_channel: promo};
+  var payload = {channel_id: channel};
   if (token && token.indexOf('****') !== 0) payload.bot_token = token;
   if (!channel || (!payload.bot_token && !(token && token.indexOf('****') === 0))) {
     toast('Token و Channel ID الزامی هستند', 'warn'); return;

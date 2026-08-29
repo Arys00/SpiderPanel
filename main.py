@@ -2323,9 +2323,10 @@ async def ensure_default_link():
         _default_link_created = True
 
 # ── Basic endpoints ───────────────────────────────────────────────────────────
-@app.get("/")
+@app.get("/", include_in_schema=False)
 async def root():
-    return {"service": "Spider Gateway", "version": "6.0", "status": "active", "channel": "https://t.me/spider_vpn1"}
+    # Open the panel directly when the Railway/custom domain is visited.
+    return RedirectResponse(url="/spider", status_code=307)
 
 # ── Subscription ping (must be before /sub/{{identifier}}) ──────────────────
 @app.get("/sub/{identifier}/ping")
@@ -2458,8 +2459,16 @@ async def subscription_handler(identifier: str, request: Request):
             all_configs = [status_config] + configs if status_config else configs
 
             content = base64.b64encode("\n".join(all_configs).encode()).decode()
+            used_b = int(target_user.get("traffic_used_bytes") or 0)
+            total_b = int(target_user.get("traffic_limit_bytes") or 0)
+            exp_ts = 0
+            if target_user.get("expire_at"):
+                try: exp_ts = int(datetime.fromisoformat(target_user["expire_at"]).timestamp())
+                except Exception: exp_ts = 0
+            info = f"upload=0; download={used_b}; total={total_b}; expire={exp_ts}"
             return Response(content=content, media_type="text/plain",
-                            headers={"profile-title": quote(username),
+                            headers={"subscription-userinfo": info,
+                                      "profile-title": quote(username),
                                       "profile-update-interval": "12",
                                       "support-url": "https://t.me/spider_vpn1"})
 
@@ -3325,6 +3334,7 @@ async def update_inbound(inbound_id: str, request: Request, _=Depends(require_au
             tg["internal_port"] = int(incoming_tg.get("internal_port") or body.get("port") or tg.get("internal_port") or ib.get("port") or 44344)
             tg["external_port"] = int(incoming_tg.get("external_port") or body.get("external_port") or tg.get("external_port") or ib.get("external_port") or 443)
             tg["external_domain"] = str(incoming_tg.get("external_domain") or body.get("external_domain") or tg.get("external_domain") or ib.get("external_domain") or "").strip()
+            tg["promotion_channel"] = str(incoming_tg.get("promotion_channel") or tg.get("promotion_channel") or "").strip()
             ib.pop("sni", None)
             ib.pop("destination", None)
             ib.pop("server_name", None)
@@ -3456,7 +3466,7 @@ async def list_users(_=Depends(require_auth)):
             "traffic_used_fmt": fmt_bytes(u.get("traffic_used_bytes", 0)),
             "traffic_percent": round(u.get("traffic_used_bytes", 0) / max(u.get("traffic_limit_bytes", 1), 1) * 100, 1) if u.get("traffic_limit_bytes", 0) > 0 else 0,
             "expire_at": u.get("expire_at"),
-            "concurrent_connections": u.get("concurrent_connections", 3),
+            "concurrent_connections": u.get("concurrent_connections", 0),
             "created_at": u.get("created_at"),
             "status": u.get("status", "active"),
             "server": u.get("server", ""),
@@ -3473,17 +3483,30 @@ async def list_users(_=Depends(require_auth)):
     result.sort(key=lambda x: x.get("created_at") or "", reverse=True)
     return {"users": result}
 
+_RANDOM_USERNAME_WORDS = [
+    "spider", "falcon", "nova", "orbit", "pixel", "shadow", "storm", "ember",
+    "silver", "rocket", "neon", "vortex", "echo", "atlas", "comet", "phoenix",
+    "raven", "zen", "spark", "nexus", "titan", "wolf", "ghost", "quantum"
+]
+
+def _random_username() -> str:
+    # Short, readable default username; uniqueness is checked by the caller.
+    return f"{random.choice(_RANDOM_USERNAME_WORDS)}-{secrets.token_hex(2)}"
+
+
 @app.post("/api/users")
 async def create_user(request: Request, _=Depends(require_auth)):
     """Create a new user with protocol config, traffic limit, and expiry."""
     body = await request.json()
-    username = (body.get("username") or "user").strip()[:40]
+    username = str(body.get("username") or "").strip()[:40]
+    if not username:
+        username = _random_username()
     password = str(body.get("password") or secrets.token_urlsafe(12))
     traffic_limit_gb = float(body.get("traffic_limit_gb") or 0)
     expire_days = int(body.get("expire_days") or 0)
     protocol = str(body.get("protocol") or "vless").lower()
     _cc_raw = body.get("concurrent_connections")
-    concurrent_connections = int(_cc_raw) if _cc_raw is not None else 3
+    concurrent_connections = int(_cc_raw) if _cc_raw not in (None, "", "null") else 0
     server = (body.get("server") or "IR-Tehran-01").strip()[:40]
     sni = str(body.get("sni") or "").strip()
     path_custom = str(body.get("path") or "").strip()
@@ -3583,9 +3606,20 @@ async def create_user(request: Request, _=Depends(require_auth)):
 
     async with USERS_LOCK:
         # Check for duplicate username
-        for existing in USERS.values():
-            if existing.get("username") == username:
+        if username and all(existing.get("username") != username for existing in USERS.values()):
+            pass
+        else:
+            # Only randomize automatically generated names on collision; user-supplied duplicates still return 409.
+            supplied_name = str(body.get("username") or "").strip()
+            if supplied_name:
                 raise HTTPException(status_code=409, detail="Username already exists")
+            for _ in range(12):
+                candidate = _random_username()
+                if all(existing.get("username") != candidate for existing in USERS.values()):
+                    username = candidate
+                    break
+            else:
+                raise HTTPException(status_code=500, detail="Could not generate a unique username")
 
         # Determine the path based on the inbound type, not just transport_type
         # WS inbound -> /ws/{config_uuid}, XHTTP inbound -> /xhttp-siz10/..., Worker inbound -> /route/...
@@ -3968,7 +4002,7 @@ async def edit_user(user_id: str, request: Request, _=Depends(require_auth)):
 
         if "concurrent_connections" in body:
             _ccv = body["concurrent_connections"]
-            cc = int(_ccv) if _ccv is not None else 3
+            cc = int(_ccv) if _ccv not in (None, "", "null") else 0
             u["concurrent_connections"] = max(0, cc)
         if any((INBOUNDS.get(i, {}).get("protocol") or "").lower() == "telegram" for i in (u.get("inbound_ids") or [])):
             from telegram_proxy import derive_secret_from_uuid
@@ -4282,9 +4316,15 @@ async def api_user_sub(username: str):
     elif not config and configs:
         config = configs[0]
 
+    host = SETTINGS.get("domain") or get_host()
+    subscription_uuid = user.get("config_uuid") or user.get("subscription_uuid") or user.get("user_id")
+    subscription_url = f"https://{host}/sub/{subscription_uuid}"
+    expire_header = int(expire_at_ts or 0)
+
     return {
         "username": user.get("username"),
         "config_uuid": user.get("config_uuid", ""),
+        "subscription_url": subscription_url,
         "protocol": user.get("protocol", "vless"),
         "custom_ip_type": user.get("custom_ip_type", ""),
         "custom_ip_count": len(all_custom),
@@ -8412,7 +8452,6 @@ async def bot_setup(request: Request, _=Depends(require_auth)):
     body = await request.json()
     token = (body.get("bot_token") or "").strip()
     channel_id = (body.get("channel_id") or "").strip()
-    promotion_channel = (body.get("promotion_channel") or "").strip()
     # The UI masks the existing bot token. Editing channel/promotion settings
     # must not replace a valid token with the mask.
     async with BOT_CONFIG_LOCK:
@@ -8434,14 +8473,10 @@ async def bot_setup(request: Request, _=Depends(require_auth)):
         await check_bot_channel_access(token, channel_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    # Validate promotion channel if provided
-    if promotion_channel:
-        if not re.match(r"^https?://t\.me/", promotion_channel):
-            raise HTTPException(status_code=400, detail="لینک promotion channel نامعتبر است")
     async with BOT_CONFIG_LOCK:
         BOT_CONFIG["bot_token"] = token
         BOT_CONFIG["channel_id"] = channel_id
-        BOT_CONFIG["promotion_channel"] = promotion_channel
+        BOT_CONFIG.pop("promotion_channel", None)
         BOT_CONFIG["last_error"] = ""
     asyncio.create_task(save_state())
     log_activity("bot", "ربات کانال تنظیم شد", "ok")
@@ -8512,7 +8547,6 @@ async def _bot_loop():
             async with BOT_CONFIG_LOCK:
                 token = BOT_CONFIG.get("bot_token", "")
                 channel_id = BOT_CONFIG.get("channel_id", "")
-                promo = BOT_CONFIG.get("promotion_channel", "")
                 value = BOT_CONFIG.get("interval_value", 10)
                 unit = BOT_CONFIG.get("interval_unit", "seconds")
                 running = BOT_CONFIG.get("running", False)

@@ -1546,7 +1546,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
   <div class="sub-card">
     <div class="sub-label">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
-      <span data-i18n="subLabel">لینک سابسکریپشن</span>
+      <span data-i18n="subLabel">لینک سابسکریپشن</span><small id="subUrlType" style="margin-inline-start:auto;font-size:10px;color:var(--muted)">V2Box / Clients</small>
     </div>
     <div class="sub-link-box">
       <span class="sub-url" id="subUrl">...</span>
@@ -1800,11 +1800,17 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
       fluffyQuick._bound = true;
       fluffyQuick.addEventListener("click", function() {
         var url = (document.getElementById("subUrl") || {}).textContent || "";
-        copyText(url.trim()).then(function() {
-          showToast(tr("toastSub"));
-          var sub = document.querySelector(".sub-card");
-          if (sub) sub.scrollIntoView({ behavior: "smooth", block: "center" });
-        }).catch(function(){ showToast(tr("toastErr"), true); });
+        url = url.trim();
+        if (!url) { showToast(tr("toastErr"), true); return; }
+        var name = ((document.getElementById("usernameVal") || {}).textContent || "SPiDER Subscription").trim();
+        // V2Box documents the install-sub scheme for one-tap subscription import.
+        var deep = "v2box://install-sub?url=" + encodeURIComponent(url) + "&name=" + encodeURIComponent(name);
+        var fallbackTimer = setTimeout(function(){
+          copyText(url).then(function(){ showToast(tr("toastSub")); }).catch(function(){ showToast(tr("toastErr"), true); });
+        }, 900);
+        var cancel = function(){ clearTimeout(fallbackTimer); };
+        document.addEventListener('visibilitychange', function once(){ if(document.hidden){ cancel(); document.removeEventListener('visibilitychange', once); } });
+        window.location.href = deep;
       });
     }
 
@@ -1980,15 +1986,18 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
   }
 
   function dataProtoKey(link) {
-    // Space-separated tag list for the filter chips:
-    // proxy (any vless/vmess/trojan/ss link), wireguard, tls, reality.
-    var l = String(link || '').toLowerCase();
-    var tags = [];
-    if (/^(vless|vmess|trojan|ss|socks|hysteria2|tuic):\/\//.test(l)) tags.push('proxy');
-    if (l.indexOf('wireguard://') === 0 || l.indexOf('wg://') === 0 || l.indexOf('peer.') === 0 && l.indexOf('amnezia') >= 0) tags.push('wireguard');
-    if (l.indexOf('security=reality') >= 0) tags.push('reality');
-    else if (l.indexOf('security=tls') >= 0 || l.indexOf('&tls=1') >= 0) tags.push('tls');
-    return tags.join(' ') || 'other';
+    var l = String(link || '').trim().toLowerCase();
+    if (l.indexOf('https://t.me/proxy?') === 0 || l.indexOf('tg://proxy') === 0 || l.indexOf('mtproto://') === 0 || l.indexOf('telegram://') === 0) return 'proxy';
+    if (l.indexOf('wireguard://') === 0 || l.indexOf('wg://') === 0 || l.indexOf('peer.') === 0 && l.indexOf('amnezia') >= 0) return 'wireguard';
+    if (l.indexOf('security=reality') >= 0) return 'reality';
+    if (l.indexOf('security=tls') >= 0 || l.indexOf('&tls=1') >= 0) return 'tls';
+    if (/^(vless|vmess|trojan|ss|socks|hysteria2|tuic):\/\//.test(l)) return 'proxy';
+    return 'other';
+  }
+
+  function categoryTitle(key) {
+    var titles = { proxy: lang === 'fa' ? 'Proxy' : 'Proxy', wireguard: 'WireGuard', tls: 'VLESS / TLS / WS', reality: 'VLESS / Reality', other: lang === 'fa' ? 'سایر' : 'Other' };
+    return titles[key] || titles.other;
   }
 
   function renderConfigs() {
@@ -1996,26 +2005,45 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
     if (!list) return;
     list.innerHTML = '';
     var iconColors = ['var(--cyan)', 'var(--magenta)', 'var(--gold)', 'var(--orange)', 'var(--success)'];
-    CONFIG_LINKS.forEach(function(link, i) {
-      var card = document.createElement('div');
-      card.className = 'config-card';
-      card.setAttribute('data-index', i);
-      card.setAttribute('data-tags', dataProtoKey(link));
-      var color = iconColors[i % iconColors.length];
-      card.innerHTML =
-        '<div class="config-left">' +
-          '<div class="proto-icon"><svg viewBox="0 0 24 24" fill="none" stroke="' + color + '" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 015 0c0 1.5-2 2-2 3.5M12 17h.01" stroke-linecap="round"/></svg></div>' +
-          '<div class="config-info"><span class="config-name">' + esc(CONFIG_NAMES[i] || ('Config ' + (i + 1))) + '</span><span class="config-proto">' + esc(CONFIG_PROTOS[i] || protoOf(link)) + '</span></div>' +
-        '</div>' +
-        '<div class="config-actions">' +
-          '<button class="icon-btn copy-cfg" type="button" data-index="' + i + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>' +
-          '<button class="icon-btn qr-btn" type="button" data-index="' + i + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M20 20v.01"/></svg></button>' +
-        '</div>';
-      list.appendChild(card);
+    var groups = {proxy:[], wireguard:[], tls:[], reality:[], other:[]};
+    CONFIG_LINKS.forEach(function(link, i) { groups[dataProtoKey(link)].push({link:link, i:i}); });
+    Object.keys(groups).forEach(function(key) {
+      var entries = groups[key];
+      if (!entries.length) return;
+      var section = document.createElement('div');
+      section.className = 'config-category';
+      section.setAttribute('data-category', key);
+      var head = document.createElement('div');
+      head.className = 'section-title';
+      head.innerHTML = '<span>' + esc(categoryTitle(key)) + '</span><span class="line"></span><span style="font-size:10px">' + entries.length + '</span>';
+      section.appendChild(head);
+      var wrap = document.createElement('div');
+      wrap.className = 'configs-list';
+      entries.forEach(function(item, localIndex) {
+        var link = item.link, i = item.i;
+        var card = document.createElement('div');
+        card.className = 'config-card';
+        card.setAttribute('data-index', i);
+        card.setAttribute('data-tags', dataProtoKey(link));
+        card.setAttribute('data-search-index', i);
+        var color = iconColors[localIndex % iconColors.length];
+        card.innerHTML =
+          '<div class="config-left">' +
+            '<div class="proto-icon"><svg viewBox="0 0 24 24" fill="none" stroke="' + color + '" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 015 0c0 1.5-2 2-2 3.5M12 17h.01" stroke-linecap="round"/></svg></div>' +
+            '<div class="config-info"><span class="config-name">' + esc(CONFIG_NAMES[i] || ('Config ' + (i + 1))) + '</span><span class="config-proto">' + esc(CONFIG_PROTOS[i] || protoOf(link)) + '</span></div>' +
+          '</div>' +
+          '<div class="config-actions">' +
+            '<button class="icon-btn copy-cfg" type="button" data-index="' + i + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>' +
+            '<button class="icon-btn qr-btn" type="button" data-index="' + i + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M20 20v.01"/></svg></button>' +
+          '</div>';
+        wrap.appendChild(card);
+      });
+      section.appendChild(wrap);
+      list.appendChild(section);
     });
     var cnt = document.getElementById('cfgCount');
     if (cnt) cnt.textContent = String(CONFIG_LINKS.length);
-    bind(); // re-bind copy/qr/search/filter handlers for the new cards
+    bind();
   }
 
   function setText(id, val) {
@@ -2060,7 +2088,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 
     // ── Subscription link + ID ──
     SUB_ID = d.config_uuid || uname;
-    SUB_URL = window.location.origin + '/link/' + SUB_ID;
+    SUB_URL = d.subscription_url || (window.location.origin + '/sub/' + SUB_ID);
     setText('subUrl', SUB_URL);
     setText('subId', SUB_ID);
 
