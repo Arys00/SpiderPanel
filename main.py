@@ -2359,7 +2359,7 @@ async def graphical_link_subscription(uuid: str, request: Request):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     # sub.html is the graphical subscription client; it now receives UUID, not username.
-    return FileResponse(_STATIC_DIR / "sub.html")
+    return FileResponse(str(_STATIC_DIR / "sub.html"))
 
 @app.get("/api/link/{uuid}")
 async def graphical_link_data(uuid: str):
@@ -4125,7 +4125,7 @@ async def public_sub_data(uuid_key: str, request: Request):
 
 # ── HTML Pages (SPA) ───────────────────────────────────────────────────────
 import os as _os
-_STATIC_DIR = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "static")
+_STATIC_DIR = Path(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "static"))
 _os.makedirs(_STATIC_DIR, exist_ok=True)
 
 # Serve static assets (mp3/png/jpg/index.html for the SPA). This was missing, so
@@ -4578,7 +4578,7 @@ async def settings_backup(_=Depends(require_auth)):
     """Download a complete backup of the panel state as JSON.
 
     Includes: users, links, subs, settings, groups, inbounds, ip_pool,
-    ip_blacklist, worker config, password hash, and saved secret.
+    ip_blacklist, worker config and scanner files. Login credentials are excluded.
     """
     from fastapi.responses import Response
     def _without_passwords(value):
@@ -4610,7 +4610,6 @@ async def settings_backup(_=Depends(require_auth)):
         "ip_blacklist": _without_passwords(list(IP_BLACKLIST)),
         "worker": _without_passwords(dict(WORKER)),
         "scanned_files": scanned,
-        "saved_secret": CONFIG["secret"],
     }
     json_bytes = json.dumps(backup_data, ensure_ascii=False, indent=2).encode("utf-8")
     filename = f"spider-panel-backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
@@ -4642,7 +4641,7 @@ async def settings_restore(request: Request, _=Depends(require_auth)):
 
         # Validate backup structure
         required_keys = ["users", "links", "subs", "settings", "groups", "inbounds",
-                         "ip_pool", "ip_blacklist", "worker", "saved_secret"]
+                         "ip_pool", "ip_blacklist", "worker"]
         for key in required_keys:
             if key not in data:
                 raise HTTPException(status_code=400, detail=f"بکاپ ناقص است: فیلد {key} وجود ندارد")
@@ -4676,16 +4675,15 @@ async def settings_restore(request: Request, _=Depends(require_auth)):
             WORKER.clear()
             WORKER.update(data.get("worker", {}))
 
-        # Panel login password is intentionally NOT part of backups.
-        # Keep the password currently configured on this installation.
-        CONFIG["secret"] = data.get("saved_secret", CONFIG["secret"])
+        # Login password/secret is intentionally NOT restored. Keeping the
+        # current server secret guarantees the existing password remains valid.
 
         # Restore scanner files when present; tolerate older backups without them.
         scanned_payload = data.get("scanned_files") or {}
         if isinstance(scanned_payload, dict):
             SCANNED_DIR.mkdir(parents=True, exist_ok=True)
             for name, content in scanned_payload.items():
-                if not re.fullmatch(r"[A-Za-z0-9_-]+\\.txt", str(name)):
+                if not re.fullmatch(r"[A-Za-z0-9_-]+\.txt", str(name)):
                     continue
                 (SCANNED_DIR / str(name)).write_text(str(content or ""), encoding="utf-8")
 
@@ -8415,6 +8413,12 @@ async def bot_setup(request: Request, _=Depends(require_auth)):
     token = (body.get("bot_token") or "").strip()
     channel_id = (body.get("channel_id") or "").strip()
     promotion_channel = (body.get("promotion_channel") or "").strip()
+    # The UI masks the existing bot token. Editing channel/promotion settings
+    # must not replace a valid token with the mask.
+    async with BOT_CONFIG_LOCK:
+        existing_token = str(BOT_CONFIG.get("bot_token") or "")
+    if not token and existing_token:
+        token = existing_token
     if not token:
         raise HTTPException(status_code=400, detail="Bot Token is required")
     if not channel_id:

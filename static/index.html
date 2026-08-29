@@ -401,6 +401,30 @@ input,select,button,textarea{font-family:inherit}
 .sp-v6-item.open .sp-v6-chevron{transform:rotate(180deg)}
 .sp-v6-body{display:none;padding:0 14px 14px;border-top:1px solid var(--border)}
 .sp-v6-item.open .sp-v6-body{display:block;animation:fadeIn .18s ease}
+/* v6 scanner accordion */
+.scn-accordion{display:flex;flex-direction:column;gap:9px;margin:14px 0}
+.scn-accordion .scn-acc-item{width:100%;border:1px solid var(--border);border-radius:14px;background:var(--bg2);overflow:hidden}
+.scn-accordion .scn-tab{display:flex;width:100%;align-items:center;justify-content:space-between;min-height:46px;padding:12px 15px;border:0;border-radius:0;background:transparent;color:var(--txt);cursor:pointer;text-align:right;font:inherit}
+.scn-accordion .scn-tab::after{content:'⌄';font-size:15px;opacity:.7;transition:transform .2s}
+.scn-accordion .scn-acc-item.open .scn-tab::after{transform:rotate(180deg)}
+.scn-accordion .scn-tab.active{background:rgba(43,127,255,.08);color:var(--txt)}
+.scn-accordion .scn-pane{display:none;border-top:1px solid var(--border);padding:13px}
+.scn-accordion .scn-acc-item.open .scn-pane{display:block}
+.inbound-load-error{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;line-height:1.8}
+.api-key-eye{min-width:42px;font-size:18px;line-height:1}
+.secret-field{display:flex;align-items:center;gap:7px}
+.secret-field input{flex:1;min-width:0}
+.secret-field .btn{min-width:42px;height:42px;padding:0}
+.schedule-editor{margin:8px 0 14px;padding:14px;border:1px solid var(--border);border-radius:14px;background:var(--bg2);}
+.schedule-title{display:flex;flex-direction:column;gap:3px;margin-bottom:12px}
+.schedule-title span{font-size:12px;font-weight:800;color:var(--txt)}
+.schedule-title small{font-size:10px;color:var(--txt2)}
+.schedule-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.schedule-field{display:flex;flex-direction:column;gap:5px;font-size:10px;color:var(--txt2)}
+.schedule-field input,.schedule-field select{width:100%;height:42px}
+.schedule-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;flex-wrap:wrap}
+.schedule-current{font-size:10px;color:var(--txt2);direction:ltr}
+@media(max-width:560px){.schedule-fields{grid-template-columns:1fr}.schedule-actions .btn{width:100%}.schedule-current{width:100%;text-align:center}}
 /* ═══ IP SCANNER ═══ */
 .scn-tabs { display: flex; gap: 8px; margin: 14px 0; background: var(--bg3); padding: 5px; border-radius: 14px; border: 1px solid var(--border); }
 .scn-tab { flex: 1; padding: 10px 6px; border: none; border-radius: 10px; background: transparent; color: var(--txt2); font-size: 12px; font-weight: 700; cursor: pointer; transition: all .2s; display: flex; align-items: center; justify-content: center; gap: 6px; }
@@ -1056,7 +1080,7 @@ tr{animation:fadeIn .3s ease}
         <span data-i18n="logout">خروج</span>
       </div>
     </nav>
-    <div class="sb-foot"><span class="dot"></span> Spider Panel v5.0</div>
+    <div class="sb-foot"><span class="dot"></span> Spider Panel v6.0</div>
   </aside>
 
   <!-- MAIN -->
@@ -1112,7 +1136,7 @@ tr{animation:fadeIn .3s ease}
           <div class="panel-h"><span class="glow" data-i18n="tab.scanner">اسکنر آی‌پی</span><span class="badge badge-g" style="margin-right:auto;animation:pulse 1.5s infinite"><span data-i18n="live">● LIVE</span></span></div>
 
           <!-- Sub-tab selector -->
-          <div class="scn-tabs" role="tablist">
+          <div class="scn-accordion" role="tablist" id="scanner-accordion">
             <button class="scn-tab active" id="scn-tab-cf" onclick="scnSwitch('cf',this)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg> Cloudflare</button>
             <button class="scn-tab" id="scn-tab-railway" onclick="scnSwitch('railway',this)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M7 19h10M4 19H3v-3l2-5h11l3 5v3h-1M5 11l1-7h9l1 7"/></svg> Railway</button>
             <button class="scn-tab" id="scn-tab-tcp" onclick="scnSwitch('tcp',this)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 7a3 3 0 0 1-3 3 3 3 0 0 1 0 6 3 3 0 0 1-3-3"/><path d="M14 17a3 3 0 0 1 3-3 3 3 0 0 1 0-6 3 3 0 0 1 3 3"/></svg> TCP</button>
@@ -1451,8 +1475,8 @@ tr{animation:fadeIn .3s ease}
             <span class="set-lbl" style="font-size:11px;max-width:100%;flex-basis:100%;margin-bottom:4px">این کلید برای اتصال و مدیریت پنل از طریق API استفاده می‌شود</span>
             <div style="display:flex;gap:8px;width:100%;align-items:center">
               <input type="password" id="panel-api-key-input" dir="ltr" readonly style="flex:1;background:var(--bg2);font-family:monospace;font-size:12px">
-              <button class="btn btn-sm btn-g" onclick="toggleApiKeyVis()" title="Show/Hide">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <button type="button" class="btn btn-sm btn-g api-key-eye" id="panel-api-key-toggle" onclick="toggleApiKeyVis()" title="Show API key" aria-label="Show API key" aria-pressed="false">
+                <span id="panel-api-key-eye" aria-hidden="true">◉</span>
               </button>
               <button class="btn btn-sm btn-g" onclick="copyApiKey()" title="Copy">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
@@ -1925,12 +1949,17 @@ async function api(url, opts) {
     opts.body = JSON.stringify(opts.body);
   }
   var r = await fetch(url, opts);
-  if (!r.ok) {
-    var txt = await r.text();
-    try { var j = JSON.parse(txt); throw new Error(j.detail || j.error || txt); } catch(e) { if (e.message && e.message !== txt) throw e; }
-    throw new Error('خطای سرور: ' + r.status);
+  if (r.status === 401) {
+    window.location.href = '/login';
+    throw new Error('جلسه ورود منقضی شده است');
   }
-  return r.json();
+  var txt = await r.text();
+  var parsed = null;
+  try { parsed = txt ? JSON.parse(txt) : {}; } catch(e) {}
+  if (!r.ok) {
+    throw new Error((parsed && (parsed.detail || parsed.error)) || txt || ('خطای سرور: ' + r.status));
+  }
+  return parsed || {};
 }
 
 // ─── Toast ───
@@ -2583,13 +2612,16 @@ function viewQR(userId) { $id('qr-img').src = '/api/users/' + userId + '/qr?t=' 
 
 // ─── Inbounds ───
 async function loadInbounds() {
+  var el = $id('inbounds-list');
+  if (el && !ALL_IB.length) el.innerHTML = '<div class="empty">در حال بارگذاری اینباندها...</div>';
   try {
     var d = await api('/api/inbounds');
-    ALL_IB = d.inbounds || [];
+    ALL_IB = Array.isArray(d.inbounds) ? d.inbounds : [];
     renderInbounds();
     populateInboundSelects();
   } catch(e) {
-    $id('inbounds-list').innerHTML = '<div class="empty">' + t('errLoadInbounds') + '</div>';
+    console.error('loadInbounds failed', e);
+    if (el) el.innerHTML = '<div class="empty inbound-load-error">' + esc('خطا در بارگذاری اینباندها: ' + (e.message || 'خطای نامشخص')) + '<button type="button" class="btn btn-sm btn-g" style="margin:10px auto 0" onclick="loadInbounds()">تلاش دوباره</button></div>';
   }
 }
 
@@ -3426,11 +3458,21 @@ function scnClearSaved(which) {
 }
 
 function scnSwitch(which, btn) {
-  document.querySelectorAll('.scn-accordion .scn-acc-item > .scn-tab').forEach(function(t) { t.classList.remove('active'); });
-  if (btn) btn.classList.add('active');
-  document.querySelectorAll('.scn-pane').forEach(function(p) { p.classList.remove('active'); });
-  var pane = $id('scn-pane-' + which);
-  if (pane) pane.classList.add('active');
+  var item = btn ? btn.closest('.scn-acc-item') : null;
+  var wasOpen = item && item.classList.contains('open');
+  document.querySelectorAll('#scanner-accordion .scn-acc-item').forEach(function(x) {
+    x.classList.remove('open');
+    var b = x.querySelector('.scn-tab');
+    var p = x.querySelector('.scn-pane');
+    if (b) { b.classList.remove('active'); b.setAttribute('aria-expanded','false'); }
+    if (p) p.classList.remove('active');
+  });
+  if (!wasOpen && item) {
+    item.classList.add('open');
+    if (btn) { btn.classList.add('active'); btn.setAttribute('aria-expanded','true'); }
+    var pane = $id('scn-pane-' + which);
+    if (pane) pane.classList.add('active');
+  }
   if (which === 'cf') scnLoadSaved('cf');
   if (which === 'railway') scnLoadSaved('railway');
   if (which === 'tcp') scnRenderDomains();
@@ -3440,9 +3482,7 @@ function scnSwitch(which, btn) {
     spfRenderAdvDropdown();
     spfLoadSpoofSettings();
   }
-  if (which === 'sni') {
-    scnLoadSniResults();
-  }
+  if (which === 'sni') scnLoadSniResults();
 }
 
 function scnStop() { SCN_STOP = true; toast(t('scanStopped'), 'warn'); }
@@ -4294,17 +4334,22 @@ document.addEventListener('click', function(e) {
 // v6 scanner accordion: pair each scanner button with its pane so each section
 // expands vertically directly beneath its own header.
 function initScannerAccordion(){
-  var host=document.querySelector('.scn-accordion'); if(!host || host.dataset.v6Ready) return;
+  var host=document.getElementById('scanner-accordion');
+  if(!host || host.dataset.v6Ready) return;
   host.dataset.v6Ready='1';
   var ids=['cf','railway','tcp','spoof','sni'];
   ids.forEach(function(code){
-    var b=$id('scn-tab-'+code), p=$id('scn-pane-'+code); if(!b||!p) return;
-    var item=document.createElement('div'); item.className='scn-acc-item';
-    b.parentNode.insertBefore(item,b); item.appendChild(b); item.appendChild(p);
-    b.addEventListener('click',function(){
-      document.querySelectorAll('.scn-accordion .scn-acc-item').forEach(function(x){x.classList.remove('open')});
-      item.classList.add('open');
-    });
+    var b=$id('scn-tab-'+code), p=$id('scn-pane-'+code);
+    if(!b || !p) return;
+    var item=document.createElement('div');
+    item.className='scn-acc-item';
+    item.dataset.code=code;
+    b.parentNode.insertBefore(item,b);
+    item.appendChild(b);
+    item.appendChild(p);
+    b.type='button';
+    b.setAttribute('aria-expanded', b.classList.contains('active') ? 'true' : 'false');
+    // The inline onclick remains the single source of behavior.
     if(b.classList.contains('active')) item.classList.add('open');
   });
 }
@@ -4329,7 +4374,7 @@ async function loadWorker() {
       if (!connected) {
         // Setup form
         html += '<div class="px-hint" data-i18n="workerSetupTip">پنل را به Cloudflare متصل کنید.</div>';
-        html += '<div class="f-g" style="margin-top:10px"><label data-i18n="cfToken">Cloudflare API Token</label><input type="password" id="wk-token" dir="ltr" style="width:100%" autocomplete="off"></div>';
+        html += '<div class="f-g" style="margin-top:10px"><label data-i18n="cfToken">Cloudflare API Token</label><div class="secret-field"><input type="password" id="wk-token" dir="ltr" autocomplete="off"><button type="button" class="btn btn-sm btn-g" onclick="toggleSecretInput(\'wk-token\',this)" title="Show token" aria-label="Show token">◌</button></div></div>';
          html += '<a class="btn btn-g" style="display:flex;align-items:center;justify-content:center;width:100%;margin-top:8px;text-decoration:none" href="https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=%5B%7B%22key%22%3A%22account_settings%22%2C%22type%22%3A%22read%22%7D%2C%7B%22key%22%3A%22workers_scripts%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22workers_kv_storage%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22workers_routes%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22user_details%22%2C%22type%22%3A%22read%22%7D%2C%7B%22key%22%3A%22memberships%22%2C%22type%22%3A%22read%22%7D%5D%26accountId%3D%2A%26zoneId%3Dall%26name%3Dspider-panel" target="_blank" rel="noopener noreferrer">ساخت Token با دسترسی‌های لازم ↗</a>'
         html += '<div class="px-hint" style="font-size:10px;color:var(--txt2);margin-bottom:6px">توکن فقط باید دسترسی‌های لازم Worker را داشته باشد.</div>';
         html += '<button class="btn btn-p" style="width:100%;margin-top:10px" onclick="workerSetup()"><span data-i18n="createNewWorker">ساخت Worker جدید</span></button>';
@@ -4737,23 +4782,43 @@ async function loadServerInfo() {
   }
 }
 
+function toggleSecretInput(id, btn) {
+  var inp = $id(id);
+  if (!inp) return;
+  var visible = inp.type === 'password';
+  inp.type = visible ? 'text' : 'password';
+  if (btn) { btn.textContent = visible ? '◉' : '◌'; btn.title = visible ? 'Hide secret' : 'Show secret'; btn.setAttribute('aria-label', btn.title); }
+}
+
 // ── Panel API Key ──
 async function loadApiKey() {
   try {
     var r = await api('/api/panel-api-key');
     var inp = $id('panel-api-key-input');
-    if (inp) inp.value = r.api_key || '';
-  } catch(e) {}
+    if (inp) { inp.value = r.api_key || ''; inp.type = 'password'; }
+    updateApiKeyEye(false);
+  } catch(e) {
+    console.error('loadApiKey failed', e);
+  }
+}
+function updateApiKeyEye(visible) {
+  var btn = $id('panel-api-key-toggle');
+  var icon = $id('panel-api-key-eye');
+  if (btn) { btn.setAttribute('aria-pressed', visible ? 'true' : 'false'); btn.title = visible ? 'Hide API key' : 'Show API key'; btn.setAttribute('aria-label', btn.title); }
+  if (icon) icon.textContent = visible ? '◉' : '◌';
 }
 function toggleApiKeyVis() {
   var inp = $id('panel-api-key-input');
-  if (inp) inp.type = inp.type === 'password' ? 'text' : 'password';
+  if (!inp) return;
+  var visible = inp.type === 'password';
+  inp.type = visible ? 'text' : 'password';
+  updateApiKeyEye(visible);
+  if (visible) { try { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); } catch(e) {} }
 }
 function copyApiKey() {
   var inp = $id('panel-api-key-input');
   if (inp && inp.value) {
-    navigator.clipboard.writeText(inp.value);
-    toast('کلید API کپی شد', 'ok');
+    navigator.clipboard.writeText(inp.value).then(function(){ toast('کلید API کپی شد', 'ok'); }).catch(function(){ toast('کپی کلید انجام نشد', 'err'); });
   }
 }
 async function regenerateApiKey() {
@@ -4761,7 +4826,8 @@ async function regenerateApiKey() {
   try {
     var r = await api('/api/panel-api-key/regenerate', { method: 'POST' });
     var inp = $id('panel-api-key-input');
-    if (inp) inp.value = r.api_key;
+    if (inp) { inp.value = r.api_key || ''; inp.type = 'password'; }
+    updateApiKeyEye(false);
     toast('کلید API بازتولید شد', 'ok');
   } catch(e) { toast(e.message || 'خطا', 'err'); }
 }
@@ -4850,12 +4916,18 @@ async function loadBotConfig() {
       + '<div class="f-g" style="margin-bottom:12px"><label>Telegram Bot Token</label><input type="password" id="bot-token" dir="ltr" placeholder="123456:ABC-defGHI..." value="' + (b.bot_token_masked || '') + '"></div>'
       + '<div class="f-g" style="margin-bottom:12px"><label>Channel ID</label><input type="text" id="bot-channel" dir="ltr" placeholder="-1001234567890" value="' + esc(b.channel_id || '') + '"></div>'
       + '<div class="f-g" style="margin-bottom:12px"><label>Promotion Channel</label><input type="url" id="bot-promo" dir="ltr" placeholder="https://t.me/yourchannel" value="' + esc(b.promotion_channel || '') + '"></div>'
-      + '<div class="set-row" style="margin-bottom:12px"><span class="set-lbl">زمان‌بندی (Interval)</span>'
-      + '<div style="display:flex;gap:8px"><input type="number" id="bot-interval" min="1" value="' + (b.interval_value || 10) + '" style="width:80px"><select id="bot-interval-unit">' + intervalOpts + '</select></div></div>'
+      + '<div class="schedule-editor">'
+      + '<div class="schedule-title"><span>زمان‌بندی ارسال</span><small>فاصله اجرای خودکار را مشخص کنید</small></div>'
+      + '<div class="schedule-fields">'
+      + '<label class="schedule-field"><span>هر</span><input type="number" id="bot-interval" min="1" max="999999" value="' + (b.interval_value || 10) + '"></label>'
+      + '<label class="schedule-field schedule-unit"><span>واحد</span><select id="bot-interval-unit">' + intervalOpts + '</select></label>'
+      + '</div>'
+      + '<div class="schedule-actions"><button type="button" class="btn btn-p btn-sm" onclick="botScheduleSubmit()">ثبت زمان‌بندی</button>'
+      + '<span class="schedule-current">فعلی: ' + (b.interval_value || 10) + ' ' + (b.interval_unit || 'minutes') + '</span></div>'
+      + '</div>'
       + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
       + '<button class="btn btn-p btn-sm" onclick="botSetupSubmit()">Create</button>'
-      + '<button class="btn btn-g btn-sm" onclick="botScheduleSubmit()">Set Schedule</button>'
-      + (b.running ? '<button class="btn btn-r btn-sm" onclick="botStop()">Stop</button>' : '<button class="btn btn-p btn-sm" onclick="botStart()">Start</button>')
+            + (b.running ? '<button class="btn btn-r btn-sm" onclick="botStop()">Stop</button>' : '<button class="btn btn-p btn-sm" onclick="botStart()">Start</button>')
       + '</div>'
       + (b.last_error ? '<div class="px-hint" style="color:var(--red);margin-top:8px">' + esc(b.last_error) + '</div>' : '')
       + (b.last_run ? '<div class="px-hint" style="margin-top:8px">Last run: ' + esc(b.last_run) + '</div>' : '')
@@ -4870,11 +4942,15 @@ async function botSetupSubmit() {
   var token = $id('bot-token').value.trim();
   var channel = $id('bot-channel').value.trim();
   var promo = $id('bot-promo').value.trim();
-  if (!token || !channel) { toast('Token و Channel ID الزامی هستند', 'warn'); return; }
+  var payload = {channel_id: channel, promotion_channel: promo};
+  if (token && token.indexOf('****') !== 0) payload.bot_token = token;
+  if (!channel || (!payload.bot_token && !(token && token.indexOf('****') === 0))) {
+    toast('Token و Channel ID الزامی هستند', 'warn'); return;
+  }
   try {
     var r = await api('/api/bot/setup', {
       method: 'POST',
-      body: JSON.stringify({ bot_token: token, channel_id: channel, promotion_channel: promo })
+      body: payload
     });
     toast('ربات «' + (r.bot_name || '') + '» تنظیم شد', 'ok');
     loadBotConfig();

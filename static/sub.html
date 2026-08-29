@@ -2030,7 +2030,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
     var img = document.createElement('img');
     img.alt = 'QR Code';
     img.style.cssText = 'width:160px;height:160px;background:#fff;border-radius:8px;padding:6px';
-    img.src = apiUrl + '/qr?cfg=' + encodeURIComponent(SUB_ID) + '&t=' + Date.now();
+    img.src = apiUrl + '/qr?t=' + Date.now();
     container.appendChild(img);
   }
 
