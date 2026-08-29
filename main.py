@@ -1489,7 +1489,6 @@ async def _start_telegram_proxy(inbound_id: str, inbound: dict):
         "internal_port": int_port,
         "external_port": ext_port,
         "external_domain": ext_domain,
-        "promotion_channel": str(tg.get("promotion_channel") or "").strip(),
     }
     inbound["port"] = int_port
     inbound["external_port"] = ext_port
@@ -1507,7 +1506,7 @@ async def _start_telegram_proxy(inbound_id: str, inbound: dict):
                     u["telegram_secret"] = secret
                 secrets_map[secret] = {"user_id": uid, "config_uuid": config_uuid, "label": u.get("username", uid)}
 
-    server = MTProtoProxyServer(inbound_id=inbound_id, port=int_port, promotion_tag=str(tg.get("promotion_channel") or "").strip())
+    server = MTProtoProxyServer(inbound_id=inbound_id, port=int_port)
     server.update_secrets(secrets_map)
     if not secrets_map:
         logger.info(f"[TG Proxy {inbound_id}] no users yet; listener will start after a Telegram user is assigned")
@@ -1893,17 +1892,22 @@ def generate_user_config(user_id: str, user: dict, inbound_id: str = None, addr:
                 xmod = "stream-up"
             xsc = xs.get("scMaxEachPostBytes", "1000000")
             extra = quote('{{"xPaddingBytes":"{}","mode":"{}","scMaxEachPostBytes":"{}"}}'.format(xpb, xmod, xsc), safe='')
-            # Use dest and server_names from reality_settings if provided
-            rs_sni = rs.get("sni") or sni
-            rs_dest = rs.get("dest") or (rs_sni + ":443")
-            rs_server_names = rs.get("server_names") or [rs_sni]
-            server_names_q = quote(",".join(rs_server_names), safe="")
-            params = (f"encryption=none&security=reality"
-                      f"&sni={quote(sni)}&fp={fp}"
-                      f"&pbk={pbk}&sid={sid}&spx={spx}"
-                      f"&type=xhttp&path={rpath}&mode={xmod}&extra={extra}"
-                      f"&dest={quote(rs_dest)}"
-                      f"&serverName={server_names_q}")
+            # XHTTP-Reality share-link format used by current clients.
+            # IMPORTANT: do not append Reality's dest/serverName fields here.
+            # XHTTP uses the actual connect address as host and the SNI as the TLS name.
+            # Keep the parameter order stable as well; this is the canonical template:
+            # mode, path, security, encryption, extra, pbk, fp, spx, type, sni, sid.
+            params = (f"mode={quote(xmod, safe='')}"
+                      f"&path={quote(rpath, safe='')}"
+                      f"&security=reality"
+                      f"&encryption=none"
+                      f"&extra={extra}"
+                      f"&pbk={quote(str(pbk), safe='')}"
+                      f"&fp={quote(str(fp), safe='')}"
+                      f"&spx={quote(str(spx), safe='')}"
+                      f"&type=xhttp"
+                      f"&sni={quote(str(sni), safe='')}"
+                      f"&sid={quote(str(sid), safe='')}")
         return f"vless://{config_uuid}@{host}:{port}?{params}#{remark}"
 
     # ── TLS (WS default / XHTTP selectable) — served by the FastAPI relay ──
@@ -2323,10 +2327,9 @@ async def ensure_default_link():
         _default_link_created = True
 
 # ── Basic endpoints ───────────────────────────────────────────────────────────
-@app.get("/", include_in_schema=False)
+@app.get("/")
 async def root():
-    # Open the panel directly when the Railway/custom domain is visited.
-    return RedirectResponse(url="/spider", status_code=307)
+    return {"service": "Spider Gateway", "version": "9.2", "status": "active", "channel": "https://t.me/spider_vpn1"}
 
 # ── Subscription ping (must be before /sub/{{identifier}}) ──────────────────
 @app.get("/sub/{identifier}/ping")
@@ -2346,53 +2349,6 @@ async def sub_ping_handler(identifier: str):
 
 
 # ── Subscription (single link / user sub page) ──────────────────────────────
-@app.get("/link/{uuid}", response_class=HTMLResponse)
-async def graphical_link_subscription(uuid: str, request: Request):
-    """Graphical subscription page for a user's config UUID.
-
-    v6 canonical URL: /link/{uuid}. The old /sub/{identifier} endpoint remains
-    available for backward compatibility.
-    """
-    if not _is_valid_uuid(uuid):
-        raise HTTPException(status_code=404, detail="Invalid subscription UUID")
-    async with USERS_LOCK:
-        user = next((dict(u, user_id=uid) for uid, u in USERS.items() if u.get("config_uuid") == uuid), None)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    # sub.html is the graphical subscription client; it now receives UUID, not username.
-    return FileResponse(str(_STATIC_DIR / "sub.html"))
-
-@app.get("/api/link/{uuid}")
-async def graphical_link_data(uuid: str):
-    """Public subscription data lookup by config UUID for v6 /link/{uuid}."""
-    if not _is_valid_uuid(uuid):
-        raise HTTPException(status_code=404, detail="Invalid subscription UUID")
-    async with USERS_LOCK:
-        found = next(((uid, dict(u)) for uid,u in USERS.items() if u.get("config_uuid")==uuid), None)
-    if not found:
-        raise HTTPException(status_code=404, detail="User not found")
-    uid, user = found
-    # Reuse the same data builder used by the legacy username endpoint by locating the user.
-    return await api_user_sub(user.get("username", uid))
-
-@app.get("/api/link/{uuid}/qr")
-async def graphical_link_qr(uuid: str):
-    """QR for the canonical v6 graphical subscription URL."""
-    if not _is_valid_uuid(uuid):
-        raise HTTPException(status_code=404, detail="Invalid subscription UUID")
-    async with USERS_LOCK:
-        user = next((dict(u, user_id=uid) for uid,u in USERS.items() if u.get("config_uuid")==uuid), None)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    import qrcode
-    host = SETTINGS.get("domain") or get_host()
-    qr = qrcode.QRCode(version=1, box_size=8, border=2)
-    qr.add_data(f"https://{host}/link/{uuid}")
-    qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white")
-    buf = io.BytesIO(); img.save(buf, format="PNG"); buf.seek(0)
-    return Response(content=buf.getvalue(), media_type="image/png")
-
 @app.get("/sub/{identifier}")
 async def subscription_handler(identifier: str, request: Request):
     """Smart handler: accepts UUID (config_uuid) → returns all user configs as base64.
@@ -2459,16 +2415,8 @@ async def subscription_handler(identifier: str, request: Request):
             all_configs = [status_config] + configs if status_config else configs
 
             content = base64.b64encode("\n".join(all_configs).encode()).decode()
-            used_b = int(target_user.get("traffic_used_bytes") or 0)
-            total_b = int(target_user.get("traffic_limit_bytes") or 0)
-            exp_ts = 0
-            if target_user.get("expire_at"):
-                try: exp_ts = int(datetime.fromisoformat(target_user["expire_at"]).timestamp())
-                except Exception: exp_ts = 0
-            info = f"upload=0; download={used_b}; total={total_b}; expire={exp_ts}"
             return Response(content=content, media_type="text/plain",
-                            headers={"subscription-userinfo": info,
-                                      "profile-title": quote(username),
+                            headers={"profile-title": quote(username),
                                       "profile-update-interval": "12",
                                       "support-url": "https://t.me/spider_vpn1"})
 
@@ -3334,7 +3282,6 @@ async def update_inbound(inbound_id: str, request: Request, _=Depends(require_au
             tg["internal_port"] = int(incoming_tg.get("internal_port") or body.get("port") or tg.get("internal_port") or ib.get("port") or 44344)
             tg["external_port"] = int(incoming_tg.get("external_port") or body.get("external_port") or tg.get("external_port") or ib.get("external_port") or 443)
             tg["external_domain"] = str(incoming_tg.get("external_domain") or body.get("external_domain") or tg.get("external_domain") or ib.get("external_domain") or "").strip()
-            tg["promotion_channel"] = str(incoming_tg.get("promotion_channel") or tg.get("promotion_channel") or "").strip()
             ib.pop("sni", None)
             ib.pop("destination", None)
             ib.pop("server_name", None)
@@ -3466,7 +3413,7 @@ async def list_users(_=Depends(require_auth)):
             "traffic_used_fmt": fmt_bytes(u.get("traffic_used_bytes", 0)),
             "traffic_percent": round(u.get("traffic_used_bytes", 0) / max(u.get("traffic_limit_bytes", 1), 1) * 100, 1) if u.get("traffic_limit_bytes", 0) > 0 else 0,
             "expire_at": u.get("expire_at"),
-            "concurrent_connections": u.get("concurrent_connections", 0),
+            "concurrent_connections": u.get("concurrent_connections", 3),
             "created_at": u.get("created_at"),
             "status": u.get("status", "active"),
             "server": u.get("server", ""),
@@ -3483,30 +3430,17 @@ async def list_users(_=Depends(require_auth)):
     result.sort(key=lambda x: x.get("created_at") or "", reverse=True)
     return {"users": result}
 
-_RANDOM_USERNAME_WORDS = [
-    "spider", "falcon", "nova", "orbit", "pixel", "shadow", "storm", "ember",
-    "silver", "rocket", "neon", "vortex", "echo", "atlas", "comet", "phoenix",
-    "raven", "zen", "spark", "nexus", "titan", "wolf", "ghost", "quantum"
-]
-
-def _random_username() -> str:
-    # Short, readable default username; uniqueness is checked by the caller.
-    return f"{random.choice(_RANDOM_USERNAME_WORDS)}-{secrets.token_hex(2)}"
-
-
 @app.post("/api/users")
 async def create_user(request: Request, _=Depends(require_auth)):
     """Create a new user with protocol config, traffic limit, and expiry."""
     body = await request.json()
-    username = str(body.get("username") or "").strip()[:40]
-    if not username:
-        username = _random_username()
+    username = (body.get("username") or "user").strip()[:40]
     password = str(body.get("password") or secrets.token_urlsafe(12))
     traffic_limit_gb = float(body.get("traffic_limit_gb") or 0)
     expire_days = int(body.get("expire_days") or 0)
     protocol = str(body.get("protocol") or "vless").lower()
     _cc_raw = body.get("concurrent_connections")
-    concurrent_connections = int(_cc_raw) if _cc_raw not in (None, "", "null") else 0
+    concurrent_connections = int(_cc_raw) if _cc_raw is not None else 3
     server = (body.get("server") or "IR-Tehran-01").strip()[:40]
     sni = str(body.get("sni") or "").strip()
     path_custom = str(body.get("path") or "").strip()
@@ -3606,20 +3540,9 @@ async def create_user(request: Request, _=Depends(require_auth)):
 
     async with USERS_LOCK:
         # Check for duplicate username
-        if username and all(existing.get("username") != username for existing in USERS.values()):
-            pass
-        else:
-            # Only randomize automatically generated names on collision; user-supplied duplicates still return 409.
-            supplied_name = str(body.get("username") or "").strip()
-            if supplied_name:
+        for existing in USERS.values():
+            if existing.get("username") == username:
                 raise HTTPException(status_code=409, detail="Username already exists")
-            for _ in range(12):
-                candidate = _random_username()
-                if all(existing.get("username") != candidate for existing in USERS.values()):
-                    username = candidate
-                    break
-            else:
-                raise HTTPException(status_code=500, detail="Could not generate a unique username")
 
         # Determine the path based on the inbound type, not just transport_type
         # WS inbound -> /ws/{config_uuid}, XHTTP inbound -> /xhttp-siz10/..., Worker inbound -> /route/...
@@ -4002,7 +3925,7 @@ async def edit_user(user_id: str, request: Request, _=Depends(require_auth)):
 
         if "concurrent_connections" in body:
             _ccv = body["concurrent_connections"]
-            cc = int(_ccv) if _ccv not in (None, "", "null") else 0
+            cc = int(_ccv) if _ccv is not None else 3
             u["concurrent_connections"] = max(0, cc)
         if any((INBOUNDS.get(i, {}).get("protocol") or "").lower() == "telegram" for i in (u.get("inbound_ids") or [])):
             from telegram_proxy import derive_secret_from_uuid
@@ -4159,7 +4082,7 @@ async def public_sub_data(uuid_key: str, request: Request):
 
 # ── HTML Pages (SPA) ───────────────────────────────────────────────────────
 import os as _os
-_STATIC_DIR = Path(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "static"))
+_STATIC_DIR = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "static")
 _os.makedirs(_STATIC_DIR, exist_ok=True)
 
 # Serve static assets (mp3/png/jpg/index.html for the SPA). This was missing, so
@@ -4316,15 +4239,9 @@ async def api_user_sub(username: str):
     elif not config and configs:
         config = configs[0]
 
-    host = SETTINGS.get("domain") or get_host()
-    subscription_uuid = user.get("config_uuid") or user.get("subscription_uuid") or user.get("user_id")
-    subscription_url = f"https://{host}/sub/{subscription_uuid}"
-    expire_header = int(expire_at_ts or 0)
-
     return {
         "username": user.get("username"),
         "config_uuid": user.get("config_uuid", ""),
-        "subscription_url": subscription_url,
         "protocol": user.get("protocol", "vless"),
         "custom_ip_type": user.get("custom_ip_type", ""),
         "custom_ip_count": len(all_custom),
@@ -4618,38 +4535,23 @@ async def settings_backup(_=Depends(require_auth)):
     """Download a complete backup of the panel state as JSON.
 
     Includes: users, links, subs, settings, groups, inbounds, ip_pool,
-    ip_blacklist, worker config and scanner files. Login credentials are excluded.
+    ip_blacklist, worker config, password hash, and saved secret.
     """
     from fastapi.responses import Response
-    def _without_passwords(value):
-        # Never export the panel login password or any password_hash nested in state.
-        if isinstance(value, dict):
-            return {k: _without_passwords(v) for k, v in value.items() if k not in ("password_hash", "password")}
-        if isinstance(value, list):
-            return [_without_passwords(v) for v in value]
-        return value
-
-    scanned = {}
-    try:
-        SCANNED_DIR.mkdir(parents=True, exist_ok=True)
-        for p in SCANNED_DIR.glob("*.txt"):
-            scanned[p.name] = p.read_text(encoding="utf-8", errors="ignore")
-    except Exception as e:
-        logger.warning(f"Could not collect scanner files for backup: {e}")
-
     backup_data = {
-        "version": "2.0",
+        "version": "1.0",
         "timestamp": datetime.now().isoformat(),
-        "links": _without_passwords(dict(LINKS)),
-        "users": _without_passwords(dict(USERS)),
-        "subs": _without_passwords(dict(SUBS)),
-        "settings": _without_passwords(dict(SETTINGS)),
-        "groups": _without_passwords(dict(GROUPS)),
-        "inbounds": _without_passwords(dict(INBOUNDS)),
-        "ip_pool": _without_passwords(list(IP_POOL)),
-        "ip_blacklist": _without_passwords(list(IP_BLACKLIST)),
-        "worker": _without_passwords(dict(WORKER)),
-        "scanned_files": scanned,
+        "links": dict(LINKS),
+        "users": dict(USERS),
+        "subs": dict(SUBS),
+        "settings": dict(SETTINGS),
+        "groups": dict(GROUPS),
+        "inbounds": dict(INBOUNDS),
+        "ip_pool": list(IP_POOL),
+        "ip_blacklist": list(IP_BLACKLIST),
+        "worker": dict(WORKER),
+        "password_hash": AUTH["password_hash"],
+        "saved_secret": CONFIG["secret"],
     }
     json_bytes = json.dumps(backup_data, ensure_ascii=False, indent=2).encode("utf-8")
     filename = f"spider-panel-backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
@@ -4681,7 +4583,7 @@ async def settings_restore(request: Request, _=Depends(require_auth)):
 
         # Validate backup structure
         required_keys = ["users", "links", "subs", "settings", "groups", "inbounds",
-                         "ip_pool", "ip_blacklist", "worker"]
+                         "ip_pool", "ip_blacklist", "worker", "password_hash", "saved_secret"]
         for key in required_keys:
             if key not in data:
                 raise HTTPException(status_code=400, detail=f"بکاپ ناقص است: فیلد {key} وجود ندارد")
@@ -4715,17 +4617,8 @@ async def settings_restore(request: Request, _=Depends(require_auth)):
             WORKER.clear()
             WORKER.update(data.get("worker", {}))
 
-        # Login password/secret is intentionally NOT restored. Keeping the
-        # current server secret guarantees the existing password remains valid.
-
-        # Restore scanner files when present; tolerate older backups without them.
-        scanned_payload = data.get("scanned_files") or {}
-        if isinstance(scanned_payload, dict):
-            SCANNED_DIR.mkdir(parents=True, exist_ok=True)
-            for name, content in scanned_payload.items():
-                if not re.fullmatch(r"[A-Za-z0-9_-]+\.txt", str(name)):
-                    continue
-                (SCANNED_DIR / str(name)).write_text(str(content or ""), encoding="utf-8")
+        AUTH["password_hash"] = data.get("password_hash", "")
+        CONFIG["secret"] = data.get("saved_secret", CONFIG["secret"])
 
         # Rebuild indexes
         _rebuild_path_index()
@@ -4841,14 +4734,12 @@ async def _run_self_update():
 
         UPDATE_STATE["ok"] = True
         UPDATE_STATE["done"] = True
-        UPDATE_STATE["running"] = False
-        _update_log("بروزرسانی کامل شد — برای اعمال شدن، پنل را ری‌استارت کنید (Railway)")
+        _update_log("بروزرسانی کامل شد — برای اعمال شدن، پنل را ری‌استارت کنید (Railway Deploy)")
         log_activity("settings", f"پنل از GitHub بروزرسانی شد ({PANEL_REPO_URL})", "ok")
         return True
     except Exception as e:
         UPDATE_STATE["ok"] = False
         UPDATE_STATE["done"] = True
-        UPDATE_STATE["running"] = False
         _update_log(f"خطا: {e}")
         log_activity("settings", f"بروزرسانی ناموفق: {e}", "err")
         return False
@@ -7094,7 +6985,7 @@ async def _worker_push_config() -> dict:
     locations = []
     for code, p in (WORKER.get("proxies") or {}).items():
         locations.append({"code": code, "country": p.get("country", code.upper()),
-                          "proxy": p.get("proxy", ""), "port": 443,
+                          "proxy": p.get("proxy", ""), "port": p.get("port", 443),
                           "proxies": p.get("proxies", [p.get("proxy")])})
     try:
         async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
@@ -7169,7 +7060,7 @@ async def _worker_control_update() -> dict:
     locations = []
     for code, p in (WORKER.get("proxies") or {}).items():
         loc = {"code": code, "country": p.get("country", code.upper()),
-               "proxy": p.get("proxy", ""), "port": 443,
+               "proxy": p.get("proxy", ""), "port": p.get("port", 443),
                "proxies": p.get("proxies", [p.get("proxy")])}
         locations.append(loc)
     try:
@@ -7303,9 +7194,6 @@ async def _sync_worker_proxies_from_source() -> dict:
                     if p.get("manual")
                 }
                 parsed.update(manual)
-                # v6 Worker country routes always target relay IPs on TCP 443.
-                for _code, _loc in parsed.items():
-                    _loc["port"] = 443
                 WORKER["proxies"] = parsed
                 WORKER["sync_count"] = int(WORKER.get("sync_count", 0)) + 1
             deploy_ok = True
@@ -7420,8 +7308,9 @@ async def worker_setup(request: Request, _=Depends(require_auth)):
         raise HTTPException(status_code=400, detail="could not resolve workers.dev subdomain")
 
     # 4. Generate a fresh random worker name — every setup creates a NEW worker.
-    # v6 always creates a fresh random Worker; the UI does not accept a custom name.
-    worker_name = "spider-" + secrets.token_hex(4)
+    worker_name = str(body.get("worker_name") or "").strip().lower()
+    if not re.fullmatch(r"[a-z][a-z0-9-]{0,30}", worker_name or ""):
+        worker_name = "spider-" + secrets.token_hex(3)
     worker_domain = _worker_safe_domain(f"{worker_name}.{subdom}.workers.dev")
 
     # 5. Save connection state, then create KV + deploy.
@@ -8452,12 +8341,7 @@ async def bot_setup(request: Request, _=Depends(require_auth)):
     body = await request.json()
     token = (body.get("bot_token") or "").strip()
     channel_id = (body.get("channel_id") or "").strip()
-    # The UI masks the existing bot token. Editing channel/promotion settings
-    # must not replace a valid token with the mask.
-    async with BOT_CONFIG_LOCK:
-        existing_token = str(BOT_CONFIG.get("bot_token") or "")
-    if not token and existing_token:
-        token = existing_token
+    promotion_channel = (body.get("promotion_channel") or "").strip()
     if not token:
         raise HTTPException(status_code=400, detail="Bot Token is required")
     if not channel_id:
@@ -8473,10 +8357,14 @@ async def bot_setup(request: Request, _=Depends(require_auth)):
         await check_bot_channel_access(token, channel_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    # Validate promotion channel if provided
+    if promotion_channel:
+        if not re.match(r"^https?://t\.me/", promotion_channel):
+            raise HTTPException(status_code=400, detail="لینک promotion channel نامعتبر است")
     async with BOT_CONFIG_LOCK:
         BOT_CONFIG["bot_token"] = token
         BOT_CONFIG["channel_id"] = channel_id
-        BOT_CONFIG.pop("promotion_channel", None)
+        BOT_CONFIG["promotion_channel"] = promotion_channel
         BOT_CONFIG["last_error"] = ""
     asyncio.create_task(save_state())
     log_activity("bot", "ربات کانال تنظیم شد", "ok")
@@ -8547,6 +8435,7 @@ async def _bot_loop():
             async with BOT_CONFIG_LOCK:
                 token = BOT_CONFIG.get("bot_token", "")
                 channel_id = BOT_CONFIG.get("channel_id", "")
+                promo = BOT_CONFIG.get("promotion_channel", "")
                 value = BOT_CONFIG.get("interval_value", 10)
                 unit = BOT_CONFIG.get("interval_unit", "seconds")
                 running = BOT_CONFIG.get("running", False)

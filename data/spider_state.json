@@ -61,8 +61,7 @@
       ],
       "path": "/ws/df1bd011-d8b7-40da-89f6-c0d9d0c567e5",
       "transport_type": "ws",
-      "telegram_secret": "",
-      "user_id": "5299ff19215a"
+      "telegram_secret": ""
     }
   },
   "subs": {},
@@ -189,25 +188,6 @@
       "worker_domain": "spider-27a71a.qabilsaibery.workers.dev",
       "created_at": "2026-08-23T18:26:39.098280",
       "reverse_enabled": true
-    },
-    "default-node": {
-      "name": "NODE (Multi-Node Sync)",
-      "protocol": "node",
-      "port": 8080,
-      "network": "ws",
-      "security": "tls",
-      "domain": "localhost",
-      "external_domain": "",
-      "sni": "",
-      "external_port": 443,
-      "fingerprint": "chrome",
-      "reality_settings": {},
-      "xhttp_settings": {},
-      "ws_settings": {
-        "path": "/ws/{uuid}"
-      },
-      "grpc_settings": {},
-      "created_at": "2026-08-29T17:38:48.288473"
     }
   },
   "ip_pool": [],
@@ -854,27 +834,7 @@
     "reverse_kv_namespace_id": "2e70ae2fc6244dd99f362dbae985fb8f",
     "reverse_kv_namespace_title": "spider-27a71a-db-reverse"
   },
-  "server_info": {
-    "public_ip": "",
-    "country": "",
-    "country_code": "",
-    "country_flag": "",
-    "detected_at": ""
-  },
-  "panel_api_key": "spdr_2-4-3i65-4nMA0Yc4i_igzLSBWPv3G2YNwgNCwB4y2g",
-  "nodes": {},
-  "bot_config": {
-    "bot_token": "",
-    "channel_id": "",
-    "promotion_channel": "",
-    "webhook_secret": "",
-    "interval_value": 15,
-    "interval_unit": "minutes",
-    "running": false,
-    "last_run": "",
-    "last_error": ""
-  },
   "password_hash": "fcb3149c23e642e467520646d99c50a045d0a5908fda6468b74fab1e851a08fa",
   "saved_secret": "spider-panel-secret-key-v2",
-  "saved_at": "2026-08-29T17:40:56.809046"
+  "saved_at": "2026-08-23T18:46:49.995248"
 }

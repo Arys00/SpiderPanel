@@ -5,7 +5,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Spider Panel v6</title>
+<title>Spider Panel v5</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -386,45 +386,6 @@ input,select,button,textarea{font-family:inherit}
 .px-noselected { color: var(--txt2); font-size: 12px; padding: 14px; text-align: center; }
 .px-loading { color: var(--txt2); font-size: 12px; padding: 18px; text-align: center; }
 
-/* v6 vertical accordion sections */
-.scn-accordion{display:flex;flex-direction:column;gap:8px;margin:12px 0}
-.scn-accordion .scn-acc-item{display:flex;flex-direction:column;width:100%;border:1px solid var(--border);border-radius:12px;background:var(--glass);overflow:hidden}
-.scn-accordion .scn-tab{width:100%;justify-content:space-between;border:0;border-radius:0;padding:12px 14px;text-align:right}
-.scn-accordion .scn-tab::after{content:'⌄';font-size:15px;opacity:.7;transition:transform .2s}
-.scn-accordion .scn-acc-item.open .scn-tab::after{transform:rotate(180deg)}
-.scn-accordion .scn-pane{border-top:1px solid var(--border);padding:12px;}
-.sp-v6-accordion{display:flex;flex-direction:column;gap:8px}
-.sp-v6-item{border:1px solid var(--border);border-radius:12px;background:var(--glass);overflow:hidden}
-.sp-v6-head{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 15px;background:transparent;border:0;color:var(--txt);cursor:pointer;text-align:right;font:inherit}
-.sp-v6-head:hover{background:rgba(0,225,193,.05)}
-.sp-v6-head .sp-v6-chevron{transition:transform .2s;font-size:15px;opacity:.7}
-.sp-v6-item.open .sp-v6-chevron{transform:rotate(180deg)}
-.sp-v6-body{display:none;padding:0 14px 14px;border-top:1px solid var(--border)}
-.sp-v6-item.open .sp-v6-body{display:block;animation:fadeIn .18s ease}
-/* v6 scanner accordion */
-.scn-accordion{display:flex;flex-direction:column;gap:9px;margin:14px 0}
-.scn-accordion .scn-acc-item{width:100%;border:1px solid var(--border);border-radius:14px;background:var(--bg2);overflow:hidden}
-.scn-accordion .scn-tab{display:flex;width:100%;align-items:center;justify-content:space-between;min-height:46px;padding:12px 15px;border:0;border-radius:0;background:transparent;color:var(--txt);cursor:pointer;text-align:right;font:inherit}
-.scn-accordion .scn-tab::after{content:'⌄';font-size:15px;opacity:.7;transition:transform .2s}
-.scn-accordion .scn-acc-item.open .scn-tab::after{transform:rotate(180deg)}
-.scn-accordion .scn-tab.active{background:rgba(43,127,255,.08);color:var(--txt)}
-.scn-accordion .scn-pane{display:none;border-top:1px solid var(--border);padding:13px}
-.scn-accordion .scn-acc-item.open .scn-pane{display:block}
-.inbound-load-error{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;line-height:1.8}
-.secret-eye-svg{width:18px;height:18px;display:block}.secret-eye-svg .eye-slash{opacity:.95;transition:opacity .2s ease}.secret-eye-btn[aria-pressed="true"] .eye-slash,.api-key-eye[aria-pressed="true"] .eye-slash{opacity:0}.secret-eye-btn,.api-key-eye{display:inline-flex;align-items:center;justify-content:center}.api-key-eye{min-width:42px;font-size:18px;line-height:1}
-.secret-field{display:flex;align-items:center;gap:7px}
-.secret-field input{flex:1;min-width:0}
-.secret-field .btn{min-width:42px;height:42px;padding:0}
-.schedule-editor{margin:8px 0 14px;padding:14px;border:1px solid var(--border);border-radius:14px;background:var(--bg2);}
-.schedule-title{display:flex;flex-direction:column;gap:3px;margin-bottom:12px}
-.schedule-title span{font-size:12px;font-weight:800;color:var(--txt)}
-.schedule-title small{font-size:10px;color:var(--txt2)}
-.schedule-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
-.schedule-field{display:flex;flex-direction:column;gap:5px;font-size:10px;color:var(--txt2)}
-.schedule-field input,.schedule-field select{width:100%;height:42px}
-.schedule-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;flex-wrap:wrap}
-.schedule-current{font-size:10px;color:var(--txt2);direction:ltr}
-@media(max-width:560px){.schedule-fields{grid-template-columns:1fr}.schedule-actions .btn{width:100%}.schedule-current{width:100%;text-align:center}}
 /* ═══ IP SCANNER ═══ */
 .scn-tabs { display: flex; gap: 8px; margin: 14px 0; background: var(--bg3); padding: 5px; border-radius: 14px; border: 1px solid var(--border); }
 .scn-tab { flex: 1; padding: 10px 6px; border: none; border-radius: 10px; background: transparent; color: var(--txt2); font-size: 12px; font-weight: 700; cursor: pointer; transition: all .2s; display: flex; align-items: center; justify-content: center; gap: 6px; }
@@ -1032,10 +993,10 @@ tr{animation:fadeIn .3s ease}
   <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
   <aside class="sidebar" id="sidebar">
     <div class="sb-brand">
-      <img src="/static/spider-logo.svg" alt="SPiDER" style="background:transparent;width:48px;height:48px;object-fit:contain">
+      <img src="/static/spider-logo.png" alt="S" onerror="this.style.display='none'" style="background:transparent;mix-blend-mode:screen">
       <div>
         <div class="sb-brand-t"><span>S</span>PIDER</div>
-        <div class="sb-brand-s">PANEL v6</div>
+        <div class="sb-brand-s">PANEL v5</div>
       </div>
     </div>
     <nav class="sb-nav">
@@ -1080,7 +1041,7 @@ tr{animation:fadeIn .3s ease}
         <span data-i18n="logout">خروج</span>
       </div>
     </nav>
-    <div class="sb-foot"><span class="dot"></span> Spider Panel v6.0</div>
+    <div class="sb-foot"><span class="dot"></span> Spider Panel v5.0</div>
   </aside>
 
   <!-- MAIN -->
@@ -1136,7 +1097,7 @@ tr{animation:fadeIn .3s ease}
           <div class="panel-h"><span class="glow" data-i18n="tab.scanner">اسکنر آی‌پی</span><span class="badge badge-g" style="margin-right:auto;animation:pulse 1.5s infinite"><span data-i18n="live">● LIVE</span></span></div>
 
           <!-- Sub-tab selector -->
-          <div class="scn-accordion" role="tablist" id="scanner-accordion">
+          <div class="scn-tabs" role="tablist">
             <button class="scn-tab active" id="scn-tab-cf" onclick="scnSwitch('cf',this)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg> Cloudflare</button>
             <button class="scn-tab" id="scn-tab-railway" onclick="scnSwitch('railway',this)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M7 19h10M4 19H3v-3l2-5h11l3 5v3h-1M5 11l1-7h9l1 7"/></svg> Railway</button>
             <button class="scn-tab" id="scn-tab-tcp" onclick="scnSwitch('tcp',this)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 7a3 3 0 0 1-3 3 3 3 0 0 1 0 6 3 3 0 0 1-3-3"/><path d="M14 17a3 3 0 0 1 3-3 3 3 0 0 1 0-6 3 3 0 0 1 3 3"/></svg> TCP</button>
@@ -1448,7 +1409,7 @@ tr{animation:fadeIn .3s ease}
 
         <div class="panel">
           <div class="panel-h"><span class="glow" data-i18n="backupRestore">بکاپ و بازیابی</span></div>
-          <div class="px-hint" data-i18n="backupRestoreHint">بکاپ کامل شامل: کاربران، لینک‌ها، اینباندها، اسکن‌ها، تنظیمات، گروه‌ها و تنظیمات Worker (بدون رمز ورود پنل). فایل JSON دانلود/آپلود می‌شود.</div>
+          <div class="px-hint" data-i18n="backupRestoreHint">بکاپ کامل شامل: کاربران، لینک‌ها، اینباندها، اسکن‌ها، تنظیمات، رمز، گروه‌ها و تنظیمات Worker. فایل JSON دانلود/آپلود می‌شود.</div>
           <div style="display:flex;gap:8px;margin-top:10px">
             <button class="btn btn-p" style="flex:1" onclick="downloadBackup()"><span data-i18n="backup">بکاپ (دانلود)</span></button>
             <button class="btn btn-g" style="flex:1" onclick="document.getElementById('restore-file').click()"><span data-i18n="restore">بازیابی (آپلود)</span></button>
@@ -1475,8 +1436,8 @@ tr{animation:fadeIn .3s ease}
             <span class="set-lbl" style="font-size:11px;max-width:100%;flex-basis:100%;margin-bottom:4px">این کلید برای اتصال و مدیریت پنل از طریق API استفاده می‌شود</span>
             <div style="display:flex;gap:8px;width:100%;align-items:center">
               <input type="password" id="panel-api-key-input" dir="ltr" readonly style="flex:1;background:var(--bg2);font-family:monospace;font-size:12px">
-              <button type="button" class="btn btn-sm btn-g api-key-eye" id="panel-api-key-toggle" onclick="toggleApiKeyVis()" title="Show API key" aria-label="Show API key" aria-pressed="false">
-                <span id="panel-api-key-eye" aria-hidden="true"><svg class="secret-eye-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.7"/><path class="eye-slash" d="M4 4l16 16"/></svg></span>
+              <button class="btn btn-sm btn-g" onclick="toggleApiKeyVis()" title="Show/Hide">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
               <button class="btn btn-sm btn-g" onclick="copyApiKey()" title="Copy">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
@@ -1557,8 +1518,8 @@ tr{animation:fadeIn .3s ease}
   <div class="modal-t"><span class="glow" data-i18n="createUser">ایجاد کاربر جدید</span></div>
   <form onsubmit="submitCreateUser(event)">
     <div class="f-r">
-      <div class="f-g"><label data-i18n="username">نام کاربری</label><input type="text" id="cu-name" placeholder="خالی = نام تصادفی"></div>
-      <div class="f-g"><label data-i18n="conn">اتصال همزمان</label><input type="number" id="cu-conn" min="0" placeholder="خالی = نامحدود"></div>
+      <div class="f-g"><label data-i18n="username">نام کاربری</label><input type="text" id="cu-name" required></div>
+      <div class="f-g"><label data-i18n="conn">اتصال همزمان</label><input type="number" id="cu-conn" placeholder="∞ نامحدود"></div>
     </div>
     <div class="f-r">
       <div class="f-g"><label data-i18n="volume">حجم</label><input type="number" id="cu-vol" placeholder="∞ نامحدود"></div>
@@ -1593,7 +1554,7 @@ tr{animation:fadeIn .3s ease}
     <div class="f-g"><label data-i18n="username">نام کاربری</label><input type="text" id="eu-name" required></div>
     <div class="f-g"><label data-i18n="volEdit">حجم (GB - ۰=نامحدود)</label><input type="number" id="eu-vol" value="20"></div>
     <div class="f-g"><label data-i18n="daysEdit">روز اعتبار (۰=نامحدود)</label><input type="number" id="eu-exp" value="30"></div>
-    <div class="f-g"><label data-i18n="conn">اتصال همزمان</label><input type="number" id="eu-conn" min="0" value="0" placeholder="۰ = نامحدود"></div>
+    <div class="f-g"><label data-i18n="conn">اتصال همزمان</label><input type="number" id="eu-conn" value="2"></div>
     <div class="f-g"><label data-i18n="status">وضعیت</label><select id="eu-status"><option value="active" data-i18n="active">فعال</option><option value="inactive" data-i18n="inactive">غیرفعال</option></select></div>
     <div class="f-g" style="display:flex;align-items:center;gap:8px">
       <input type="checkbox" id="eu-reset" style="width:auto">
@@ -1839,7 +1800,7 @@ var I18N = {
     'backupDownloaded': 'بکاپ دانلود شد', 'restoreDone': 'بازیابی انجام شد', 'restoreFailed': 'بازیابی ناموفق', 'restoreUploading': 'در حال آپلود و بازیابی...', 'restoreUploadFailed': 'آپلود ناموفق',
     'panelUpdate': 'بروزرسانی پنل', 'updatePanel': 'بروزرسانی', 'confirmUpdate': 'پنل از GitHub بروزرسانی شود؟', 'updateStarted': 'بروزرسانی شروع شد...', 'updateDone': 'بروزرسانی کامل شد — پنل را ری‌استارت کنید', 'updateFailed': 'بروزرسانی ناموفق بود', 'updateRunning': 'در حال بروزرسانی...',
     'panelUpdateHint': 'با زدن این دکمه، آخرین نسخه ریپو از GitHub دریافت و روی سرور نصب می‌شود (amirh00sain/SpiderPanel). بعد از اتمام، پنل را در Railway ری‌استارت/ری‌دپلوی کنید تا نسخه جدید اعمال شود.',
-    'backupRestore': 'بکاپ و بازیابی', 'backup': 'بکاپ (دانلود)', 'restore': 'بازیابی (آپلود)', 'backupRestoreHint': 'بکاپ کامل شامل: کاربران، لینک‌ها، اینباندها، اسکن‌ها، تنظیمات، گروه‌ها و تنظیمات Worker (بدون رمز ورود پنل). فایل JSON دانلود/آپلود می‌شود.',
+    'backupRestore': 'بکاپ و بازیابی', 'backup': 'بکاپ (دانلود)', 'restore': 'بازیابی (آپلود)', 'backupRestoreHint': 'بکاپ کامل شامل: کاربران، لینک‌ها، اینباندها، اسکن‌ها، تنظیمات، رمز، گروه‌ها و تنظیمات Worker. فایل JSON دانلود/آپلود می‌شود.',
     'autoconfig': 'Auto Config', 'tunnel': 'Tunnel',
     'acAutoBtn': 'Auto', 'acHint': 'اسکن کامل خودکار: پینگ دامنه‌ها → انتخاب Railway/Cloudflare → اسکن IP → تست دامنه‌های TCP → اسکن SNI → پینگ نهایی پنل. همه مراحل با اینترنت خود شما انجام می‌شود.',
     'acEnterDomain': 'لطفاً دامنه پنل را وارد کنید', 'acPingingDomains': 'در حال گرفتن پینگ از دامنه‌ها...', 'acYourDomain': 'دامنه شما', 'acPickDomain': 'دامنه را انتخاب کنید (دامنه Railway → اسکن IP های Railway، غیر از آن → اسکن IP های Cloudflare):',
@@ -1949,17 +1910,12 @@ async function api(url, opts) {
     opts.body = JSON.stringify(opts.body);
   }
   var r = await fetch(url, opts);
-  if (r.status === 401) {
-    window.location.href = '/login';
-    throw new Error('جلسه ورود منقضی شده است');
-  }
-  var txt = await r.text();
-  var parsed = null;
-  try { parsed = txt ? JSON.parse(txt) : {}; } catch(e) {}
   if (!r.ok) {
-    throw new Error((parsed && (parsed.detail || parsed.error)) || txt || ('خطای سرور: ' + r.status));
+    var txt = await r.text();
+    try { var j = JSON.parse(txt); throw new Error(j.detail || j.error || txt); } catch(e) { if (e.message && e.message !== txt) throw e; }
+    throw new Error('خطای سرور: ' + r.status);
   }
-  return parsed || {};
+  return r.json();
 }
 
 // ─── Toast ───
@@ -2177,7 +2133,7 @@ function switchTab(tab, el) {
   if (tab === 'dashboard') loadDashboard();
   if (tab === 'users') loadUsers();
   if (tab === 'inbounds') loadInbounds();
-  if (tab === 'scanner') { initScannerAccordion(); scnInit(); }
+  if (tab === 'scanner') scnInit();
   if (tab === 'worker') loadWorker();
   if (tab === 'settings') { loadServerInfo(); loadApiKey(); }
   if (tab === 'node') loadNodes();
@@ -2283,28 +2239,14 @@ async function loadUsers() {
 function renderUsers() {
   var el = $id('users-list');
   if (!ALL_USERS.length) { el.innerHTML = '<div class="empty">' + t('noUsers') + '</div>'; return; }
-  var html = '<div class="sp-v6-accordion">';
-  ALL_USERS.forEach(function(u, i) {
-    var inboundName = u.inbound_name || (u.inbound_id ? u.inbound_id.substring(0,8) : t('default'));
-    html += '<div class="sp-v6-item" id="user-acc-' + esc(u.user_id) + '">';
-    html += '<button type="button" class="sp-v6-head" onclick="toggleV6Accordion(this)">';
-    html += '<strong class="u-card-name">' + esc(u.username) + '</strong>';
-    html += '<span style="display:flex;align-items:center;gap:8px">' + _userStatus(u) + '<span class="sp-v6-chevron">⌄</span></span>';
-    html += '</button>';
-    html += '<div class="sp-v6-body"><div class="u-card-traffic" style="padding-top:12px">' + _userTraffic(u) + '</div>';
-    html += '<div class="u-card-meta" style="margin-top:10px">';
-    html += '<span><i>' + t('expiry') + '</i><b>' + _userExp(u) + '</b></span>';
-    html += '<span><i>' + t('connTh') + '</i><b>' + (Number(u.concurrent_connections) === 0 ? '∞' : (u.concurrent_connections ?? '∞')) + '</b></span>';
-    html += '<span><i>' + t('inbounds') + '</i><b class="badge badge-b">' + esc(inboundName) + '</b></span>';
-    if (u.proxy_country) html += '<span><i>IP</i><b><span class="badge badge-p">' + esc(u.proxy_country) + '</span></b></span>';
-    html += '</div><div class="u-card-actions" style="margin-top:10px">' + _userActions(u) + '</div></div></div>';
-  });
-  html += '</div>'; el.innerHTML = html;
-}
-
-function toggleV6Accordion(btn) {
-  var item = btn.closest('.sp-v6-item'); if (!item) return;
-  item.classList.toggle('open');
+  var isMobile = window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
+  if (isMobile) { el.innerHTML = '<div class="u-cards">' + ALL_USERS.map(_userCard).join('') + '</div>'; return; }
+  var html = '<div class="tbl"><table><thead><tr><th>' + t('username') + '</th><th>' + t('volume') + '</th><th>' + t('expiry') + '</th><th>' + t('connTh') + '</th><th>' + t('status') + '</th><th>' + t('inbounds') + '</th><th>' + t('action') + '</th></tr></thead><tbody>';
+  for (var i = 0; i < ALL_USERS.length; i++) {
+    html += '<tr>' + _userRow(ALL_USERS[i]) + '</tr>';
+  }
+  html += '</tbody></table></div>';
+  el.innerHTML = html;
 }
 
 function _userTraffic(u) {
@@ -2329,6 +2271,7 @@ function _userActions(u) {
     '<button class="btn btn-sm btn-g" onclick="viewSub(\'' + u.username + '\')" title="Sub Link">'+iconLink+'</button>' +
     '<button class="btn btn-sm btn-b" onclick="viewQR(\'' + u.user_id + '\')" title="QR Code">'+iconQr+'</button>' +
     '<button class="btn btn-sm btn-b" onclick="editUser(\'' + u.user_id + '\')" title="Edit">'+iconEdit+'</button>' +
+    '<button class="btn btn-sm btn-p" onclick="createCustomConfig(\'' + u.user_id + '\')" title="Custom Config" style="font-size:10px;padding:4px 8px">⚡ Custom</button>' +
     '<button class="btn btn-sm btn-r" onclick="toggleUser(\'' + u.user_id + '\')" title="Toggle">'+iconToggle+'</button>' +
     '<button class="btn btn-sm btn-r" onclick="deleteUser(\'' + u.user_id + '\')" title="Delete">'+iconTrash+'</button>' +
   '</div>';
@@ -2339,7 +2282,7 @@ function _userRow(u) {
   var r = '<td><strong>' + esc(u.username) + '</strong></td>';
   r += '<td>' + _userTraffic(u) + '</td>';
   r += '<td>' + _userExp(u) + '</td>';
-  r += '<td>' + (Number(u.concurrent_connections) === 0 ? '∞' : (u.concurrent_connections ?? '∞')) + '</td>';
+  r += '<td>' + (u.concurrent_connections || '۲') + '</td>';
   r += '<td>' + _userStatus(u) + '</td>';
   r += '<td><span class="badge badge-b">' + esc(inboundName) + '</span>' + (u.proxy_country ? ' <span class="badge badge-p">' + esc(u.proxy_country) + '</span>' : '') + '</td>';
   r += '<td>' + _userActions(u) + '</td>';
@@ -2355,7 +2298,7 @@ function _userCard(u) {
     '<div class="u-card-traffic">' + _userTraffic(u) + '</div>' +
     '<div class="u-card-meta">' +
       '<span><i>' + t('expiry') + '</i><b>' + expText + '</b></span>' +
-      '<span><i>' + t('connTh') + '</i><b>' + (Number(u.concurrent_connections) === 0 ? '∞' : (u.concurrent_connections ?? '∞')) + '</b></span>' +
+      '<span><i>' + t('connTh') + '</i><b>' + (u.concurrent_connections || '۲') + '</b></span>' +
       '<span><i>' + t('inbounds') + '</i><b class="badge badge-b">' + esc(inboundName) + '</b></span>' +
       (countryBadge ? '<span><i>IP</i><b>' + countryBadge + '</b></span>' : '') +
     '</div>' +
@@ -2427,7 +2370,7 @@ async function submitCreateUser(e) {
   var firstCountry = allCountries[0] || '';
   try {
     var r = await api('/api/users', {method: 'POST', body: {
-      username: $id('cu-name').value.trim(),
+      username: $id('cu-name').value,
       traffic_limit_gb: vu === 'GB' ? v : v / 1024,
       expire_days: eu === 'months' ? ex * 30 : ex,
       concurrent_connections: parseInt($id('cu-conn').value) || 0,
@@ -2527,7 +2470,7 @@ function editUser(uid) {
   $id('eu-vol').value = (u.traffic_limit_bytes ? (u.traffic_limit_bytes / 1073741824).toFixed(0) : '0');
   $id('eu-exp').value = u.expire_at ? Math.ceil((new Date(u.expire_at) - new Date()) / 86400000) : 0;
   $id('eu-status').value = u.status || 'active';
-  $id('eu-conn').value = Number(u.concurrent_connections) === 0 || u.concurrent_connections == null ? '' : u.concurrent_connections;
+  $id('eu-conn').value = u.concurrent_connections || 2;
   renderEditInboundPicker(u);
   openModal('mod-edit-user');
 }
@@ -2555,7 +2498,7 @@ async function submitEditUser(e) {
       username: $id('eu-name').value,
       traffic_limit_gb: $id('eu-vol').value ? parseFloat($id('eu-vol').value) : 0,
       expire_days: parseInt($id('eu-exp').value) || 0,
-      concurrent_connections: parseInt($id('eu-conn').value, 10) || 0,
+      concurrent_connections: parseInt($id('eu-conn').value) || 2,
       status: $id('eu-status').value,
       reset_traffic: $id('eu-reset') ? $id('eu-reset').checked : false,
       fake_sni: fakeSni,
@@ -2604,48 +2547,69 @@ function viewSub(userOrName) {
     if (found && found.config_uuid) uuid = found.config_uuid;
   }
   if (!uuid && typeof userOrName === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userOrName)) uuid = userOrName;
-  if (uuid) window.open('/link/' + uuid, '_blank');
+  if (uuid) window.open('/subs/' + uuid, '_blank');
   else window.open('/sub/' + encodeURIComponent(userOrName), '_blank');
 }
 function viewQR(userId) { $id('qr-img').src = '/api/users/' + userId + '/qr?t=' + Date.now(); openModal('mod-qr'); }
 
 // ─── Inbounds ───
 async function loadInbounds() {
-  var el = $id('inbounds-list');
-  if (el && !ALL_IB.length) el.innerHTML = '<div class="empty">در حال بارگذاری اینباندها...</div>';
   try {
     var d = await api('/api/inbounds');
-    ALL_IB = Array.isArray(d.inbounds) ? d.inbounds : [];
+    ALL_IB = d.inbounds || [];
     renderInbounds();
     populateInboundSelects();
   } catch(e) {
-    console.error('loadInbounds failed', e);
-    if (el) el.innerHTML = '<div class="empty inbound-load-error">' + esc('خطا در بارگذاری اینباندها: ' + (e.message || 'خطای نامشخص')) + '<button type="button" class="btn btn-sm btn-g" style="margin:10px auto 0" onclick="loadInbounds()">تلاش دوباره</button></div>';
+    $id('inbounds-list').innerHTML = '<div class="empty">' + t('errLoadInbounds') + '</div>';
   }
 }
 
 function renderInbounds() {
   var el = $id('inbounds-list');
   if (!ALL_IB.length) { el.innerHTML = '<div class="empty">' + t('noInbounds') + '</div>'; return; }
-  var html = '<div class="sp-v6-accordion">';
-  ALL_IB.forEach(function(ib) {
+  var html = '<div class="stats" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">';
+  for (var i = 0; i < ALL_IB.length; i++) {
+    var ib = ALL_IB[i];
     var proto = (ib.protocol || 'vless').toLowerCase();
-    var protoBadge = proto === 'reality' ? 'badge-p' : proto === 'wireguard' ? 'badge-b' : 'badge-b';
-    var body = '<div style="font-size:11px;color:var(--txt2);line-height:1.8;padding-top:12px">';
+    var protoBadge = proto === 'reality' ? 'badge-p' : proto === 'wireguard' ? 'badge-b' : proto === 'telegram' ? 'badge-b' : 'badge-b';
+    html += '<div class="stat" style="text-align:right">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
+    html += '<strong>' + esc(ib.name) + '</strong><span class="badge ' + protoBadge + '">' + proto.toUpperCase() + '</span>';
+    html += '</div>';
+    html += '<div style="font-size:11px;color:var(--txt2);line-height:1.8">';
     if (proto === 'wireguard') {
-      var wg=ib.wireguard_settings||{}; body += 'Endpoint: '+esc(wg.endpoint||'—')+'<br>'+t('port')+': '+esc(ib.port||'51820')+'<br>MTU: '+esc(wg.mtu||'1280')+'<br>Address: '+esc(wg.address||'—');
+      var wg = ib.wireguard_settings || {};
+      html += 'Endpoint: ' + (wg.endpoint || '—') + '<br>';
+      html += t('port') + ': ' + (ib.port || '51820') + '<br>';
+      html += 'MTU: ' + (wg.mtu || '1280') + '<br>';
+      html += 'Address: ' + (wg.address || '—');
     } else if (proto === 'telegram') {
-      var tg=ib.telegram_settings||{}; body += 'Domain: '+esc(tg.external_domain||ib.external_domain||'—')+'<br>Internal Port: '+esc(tg.internal_port||ib.port||'—')+'<br>External Port: '+esc(tg.external_port||ib.external_port||'—')+'<br>Promotion: '+esc(tg.promotion_channel||'—');
+      var tg = ib.telegram_settings || {};
+      html += 'Domain: ' + (tg.external_domain || ib.external_domain || '—') + '<br>';
+      html += 'Internal Port: ' + (tg.internal_port || ib.port || '—') + '<br>';
+      html += 'External Port: ' + (tg.external_port || ib.external_port || '—');
     } else if (proto === 'worker') {
-      body += t('domain')+': '+esc(ib.external_domain||'—')+'<br>'+t('port')+': 443 (Worker)';
+      html += t('domain') + ': ' + (ib.external_domain || '—') + '<br>';
+      html += t('port') + ': 443 (Worker)';
+    } else if (ib.protocol === 'reality' || ib.security === 'reality') {
+      html += t('domain') + ': ' + (ib.external_domain || '—') + '<br>';
+      html += t('port') + ': ' + (ib.port || '—');
     } else {
-      body += t('domain')+': '+esc(ib.external_domain||'—')+'<br>'+t('port')+': '+esc(ib.port||'443')+'<br>'+t('secNetwork')+': '+esc(ib.network||'tcp')+' | '+t('security')+': '+esc(ib.security||'none');
+      html += t('domain') + ': ' + (ib.external_domain || '—') + ' (خودکار)<br>';
+      html += t('port') + ': 443 / relay';
     }
-    body += '<br>'+t('usersCount')+': '+esc(ib.users_count||0)+'</div>';
-    body += '<div style="margin-top:10px;display:flex;gap:6px"><button class="btn btn-sm btn-b" onclick="editInbound(\''+ib.inbound_id+'\')">'+t('edit')+'</button><button class="btn btn-sm btn-r" onclick="deleteInbound(\''+ib.inbound_id+'\')">'+t('delete')+'</button></div>';
-    html += '<div class="sp-v6-item"><button type="button" class="sp-v6-head" onclick="toggleV6Accordion(this)"><strong>'+esc(ib.name)+'</strong><span style="display:flex;align-items:center;gap:8px"><span class="badge '+protoBadge+'">'+esc(proto.toUpperCase())+'</span><span class="sp-v6-chevron">⌄</span></span></button><div class="sp-v6-body">'+body+'</div></div>';
-  });
-  html += '</div>'; el.innerHTML=html;
+    if (proto !== 'wireguard' && proto !== 'telegram') {
+      html += '<br>' + t('secNetwork') + ': ' + (ib.network || 'tcp') + ' | ' + t('security') + ': ' + (ib.security || 'none');
+    }
+    html += '<br>' + t('usersCount') + ': ' + (ib.users_count || 0);
+    html += '</div>';
+    html += '<div style="margin-top:10px;display:flex;gap:4px">';
+    html += '<button class="btn btn-sm btn-b" onclick="editInbound(\'' + ib.inbound_id + '\')">' + t('edit') + '</button>';
+    html += '<button class="btn btn-sm btn-r" onclick="deleteInbound(\'' + ib.inbound_id + '\')">' + t('delete') + '</button>';
+    html += '</div></div>';
+  }
+  html += '</div>';
+  el.innerHTML = html;
 }
 
 function populateInboundSelects() {
@@ -2852,7 +2816,6 @@ function editInbound(iid) {
     $id('ib-tg-intport').value = tg.internal_port || ib.port || 44344;
     $id('ib-tg-extport').value = tg.external_port || ib.external_port || 443;
     $id('ib-tg-domain').value = tg.external_domain || ib.external_domain || '';
-    if ($id('ib-tg-promo')) $id('ib-tg-promo').value = tg.promotion_channel || '';
     $id('ib-submit').textContent = t('updateInbound');
     onProtocolChange();
     openModal('mod-inbound');
@@ -3106,7 +3069,7 @@ wireModalCloseButtons();
 // $id is declared once at the top of this script. Keep this section for helpers only.
 
 // ─── Helpers ───
-function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function esc(s) { return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function toFa(n) { return String(n).replace(/\d/g, function(d) { return '۰۱۲۳۴۵۶۷۸۹'[d]; }); }
 function fmtBytes(b) {
   if (!b || b <= 0) return '0 B';
@@ -3458,21 +3421,11 @@ function scnClearSaved(which) {
 }
 
 function scnSwitch(which, btn) {
-  var item = btn ? btn.closest('.scn-acc-item') : null;
-  var wasOpen = item && item.classList.contains('open');
-  document.querySelectorAll('#scanner-accordion .scn-acc-item').forEach(function(x) {
-    x.classList.remove('open');
-    var b = x.querySelector('.scn-tab');
-    var p = x.querySelector('.scn-pane');
-    if (b) { b.classList.remove('active'); b.setAttribute('aria-expanded','false'); }
-    if (p) p.classList.remove('active');
-  });
-  if (!wasOpen && item) {
-    item.classList.add('open');
-    if (btn) { btn.classList.add('active'); btn.setAttribute('aria-expanded','true'); }
-    var pane = $id('scn-pane-' + which);
-    if (pane) pane.classList.add('active');
-  }
+  document.querySelectorAll('.scn-tab').forEach(function(t) { t.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  document.querySelectorAll('.scn-pane').forEach(function(p) { p.classList.remove('active'); });
+  var pane = $id('scn-pane-' + which);
+  if (pane) pane.classList.add('active');
   if (which === 'cf') scnLoadSaved('cf');
   if (which === 'railway') scnLoadSaved('railway');
   if (which === 'tcp') scnRenderDomains();
@@ -3482,7 +3435,9 @@ function scnSwitch(which, btn) {
     spfRenderAdvDropdown();
     spfLoadSpoofSettings();
   }
-  if (which === 'sni') scnLoadSniResults();
+  if (which === 'sni') {
+    scnLoadSniResults();
+  }
 }
 
 function scnStop() { SCN_STOP = true; toast(t('scanStopped'), 'warn'); }
@@ -4331,29 +4286,6 @@ document.addEventListener('click', function(e) {
   }
 });
 
-// v6 scanner accordion: pair each scanner button with its pane so each section
-// expands vertically directly beneath its own header.
-function initScannerAccordion(){
-  var host=document.getElementById('scanner-accordion');
-  if(!host || host.dataset.v6Ready) return;
-  host.dataset.v6Ready='1';
-  var ids=['cf','railway','tcp','spoof','sni'];
-  ids.forEach(function(code){
-    var b=$id('scn-tab-'+code), p=$id('scn-pane-'+code);
-    if(!b || !p) return;
-    var item=document.createElement('div');
-    item.className='scn-acc-item';
-    item.dataset.code=code;
-    b.parentNode.insertBefore(item,b);
-    item.appendChild(b);
-    item.appendChild(p);
-    b.type='button';
-    b.setAttribute('aria-expanded', b.classList.contains('active') ? 'true' : 'false');
-    // The inline onclick remains the single source of behavior.
-    if(b.classList.contains('active')) item.classList.add('open');
-  });
-}
-
 // ═══ CLOUDFLARE WORKER (proxy manager) ═══
 var WK_STATE = {connected: false, proxies: []};
 
@@ -4374,8 +4306,7 @@ async function loadWorker() {
       if (!connected) {
         // Setup form
         html += '<div class="px-hint" data-i18n="workerSetupTip">پنل را به Cloudflare متصل کنید.</div>';
-        html += '<div class="f-g" style="margin-top:10px"><label data-i18n="cfToken">Cloudflare API Token</label><div class="secret-field"><input type="password" id="wk-token" dir="ltr" autocomplete="off"><button type="button" class="btn btn-sm btn-g" onclick="toggleSecretInput(\'wk-token\',this)" title="Show token" aria-label="Show token">◌</button></div></div>';
-         html += '<a class="btn btn-g" style="display:flex;align-items:center;justify-content:center;width:100%;margin-top:8px;text-decoration:none" href="https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=%5B%7B%22key%22%3A%22account_settings%22%2C%22type%22%3A%22read%22%7D%2C%7B%22key%22%3A%22workers_scripts%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22workers_kv_storage%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22workers_routes%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22user_details%22%2C%22type%22%3A%22read%22%7D%2C%7B%22key%22%3A%22memberships%22%2C%22type%22%3A%22read%22%7D%5D%26accountId%3D%2A%26zoneId%3Dall%26name%3Dspider-panel" target="_blank" rel="noopener noreferrer">ساخت Token با دسترسی‌های لازم ↗</a>'
+        html += '<div class="f-g" style="margin-top:10px"><label data-i18n="cfToken">Cloudflare API Token</label><input type="password" id="wk-token" dir="ltr" style="width:100%" autocomplete="off"></div>';
         html += '<div class="px-hint" style="font-size:10px;color:var(--txt2);margin-bottom:6px">توکن فقط باید دسترسی‌های لازم Worker را داشته باشد.</div>';
         html += '<button class="btn btn-p" style="width:100%;margin-top:10px" onclick="workerSetup()"><span data-i18n="createNewWorker">ساخت Worker جدید</span></button>';
       } else {
@@ -4782,41 +4713,23 @@ async function loadServerInfo() {
   }
 }
 
-function toggleSecretInput(id, btn) {
-  var inp = $id(id);
-  if (!inp) return;
-  var visible = inp.type === 'password';
-  inp.type = visible ? 'text' : 'password';
-  if (btn) { btn.title = visible ? 'Hide secret' : 'Show secret'; btn.setAttribute('aria-label', btn.title); btn.setAttribute('aria-pressed', visible ? 'true' : 'false'); }
-}
-
 // ── Panel API Key ──
 async function loadApiKey() {
   try {
     var r = await api('/api/panel-api-key');
     var inp = $id('panel-api-key-input');
-    if (inp) { inp.value = r.api_key || ''; inp.type = 'password'; }
-    updateApiKeyEye(false);
-  } catch(e) {
-    console.error('loadApiKey failed', e);
-  }
-}
-function updateApiKeyEye(visible) {
-  var btn = $id('panel-api-key-toggle');
-  if (btn) { btn.setAttribute('aria-pressed', visible ? 'true' : 'false'); btn.title = visible ? 'Hide API key' : 'Show API key'; btn.setAttribute('aria-label', btn.title); }
+    if (inp) inp.value = r.api_key || '';
+  } catch(e) {}
 }
 function toggleApiKeyVis() {
   var inp = $id('panel-api-key-input');
-  if (!inp) return;
-  var visible = inp.type === 'password';
-  inp.type = visible ? 'text' : 'password';
-  updateApiKeyEye(visible);
-  if (visible) { try { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); } catch(e) {} }
+  if (inp) inp.type = inp.type === 'password' ? 'text' : 'password';
 }
 function copyApiKey() {
   var inp = $id('panel-api-key-input');
   if (inp && inp.value) {
-    navigator.clipboard.writeText(inp.value).then(function(){ toast('کلید API کپی شد', 'ok'); }).catch(function(){ toast('کپی کلید انجام نشد', 'err'); });
+    navigator.clipboard.writeText(inp.value);
+    toast('کلید API کپی شد', 'ok');
   }
 }
 async function regenerateApiKey() {
@@ -4824,8 +4737,7 @@ async function regenerateApiKey() {
   try {
     var r = await api('/api/panel-api-key/regenerate', { method: 'POST' });
     var inp = $id('panel-api-key-input');
-    if (inp) { inp.value = r.api_key || ''; inp.type = 'password'; }
-    updateApiKeyEye(false);
+    if (inp) inp.value = r.api_key;
     toast('کلید API بازتولید شد', 'ok');
   } catch(e) { toast(e.message || 'خطا', 'err'); }
 }
@@ -4913,18 +4825,13 @@ async function loadBotConfig() {
       + '<span class="set-lbl">وضعیت ربات</span>' + statusBadge + '</div>'
       + '<div class="f-g" style="margin-bottom:12px"><label>Telegram Bot Token</label><input type="password" id="bot-token" dir="ltr" placeholder="123456:ABC-defGHI..." value="' + (b.bot_token_masked || '') + '"></div>'
       + '<div class="f-g" style="margin-bottom:12px"><label>Channel ID</label><input type="text" id="bot-channel" dir="ltr" placeholder="-1001234567890" value="' + esc(b.channel_id || '') + '"></div>'
-      + '<div class="schedule-editor">'
-      + '<div class="schedule-title"><span>زمان‌بندی ارسال</span><small>فاصله اجرای خودکار را مشخص کنید</small></div>'
-      + '<div class="schedule-fields">'
-      + '<label class="schedule-field"><span>هر</span><input type="number" id="bot-interval" min="1" max="999999" value="' + (b.interval_value || 10) + '"></label>'
-      + '<label class="schedule-field schedule-unit"><span>واحد</span><select id="bot-interval-unit">' + intervalOpts + '</select></label>'
-      + '</div>'
-      + '<div class="schedule-actions"><button type="button" class="btn btn-p btn-sm" onclick="botScheduleSubmit()">ثبت زمان‌بندی</button>'
-      + '<span class="schedule-current">فعلی: ' + (b.interval_value || 10) + ' ' + (b.interval_unit || 'minutes') + '</span></div>'
-      + '</div>'
+      + '<div class="f-g" style="margin-bottom:12px"><label>Promotion Channel</label><input type="url" id="bot-promo" dir="ltr" placeholder="https://t.me/yourchannel" value="' + esc(b.promotion_channel || '') + '"></div>'
+      + '<div class="set-row" style="margin-bottom:12px"><span class="set-lbl">زمان‌بندی (Interval)</span>'
+      + '<div style="display:flex;gap:8px"><input type="number" id="bot-interval" min="1" value="' + (b.interval_value || 10) + '" style="width:80px"><select id="bot-interval-unit">' + intervalOpts + '</select></div></div>'
       + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
       + '<button class="btn btn-p btn-sm" onclick="botSetupSubmit()">Create</button>'
-            + (b.running ? '<button class="btn btn-r btn-sm" onclick="botStop()">Stop</button>' : '<button class="btn btn-p btn-sm" onclick="botStart()">Start</button>')
+      + '<button class="btn btn-g btn-sm" onclick="botScheduleSubmit()">Set Schedule</button>'
+      + (b.running ? '<button class="btn btn-r btn-sm" onclick="botStop()">Stop</button>' : '<button class="btn btn-p btn-sm" onclick="botStart()">Start</button>')
       + '</div>'
       + (b.last_error ? '<div class="px-hint" style="color:var(--red);margin-top:8px">' + esc(b.last_error) + '</div>' : '')
       + (b.last_run ? '<div class="px-hint" style="margin-top:8px">Last run: ' + esc(b.last_run) + '</div>' : '')
@@ -4938,15 +4845,12 @@ async function loadBotConfig() {
 async function botSetupSubmit() {
   var token = $id('bot-token').value.trim();
   var channel = $id('bot-channel').value.trim();
-  var payload = {channel_id: channel};
-  if (token && token.indexOf('****') !== 0) payload.bot_token = token;
-  if (!channel || (!payload.bot_token && !(token && token.indexOf('****') === 0))) {
-    toast('Token و Channel ID الزامی هستند', 'warn'); return;
-  }
+  var promo = $id('bot-promo').value.trim();
+  if (!token || !channel) { toast('Token و Channel ID الزامی هستند', 'warn'); return; }
   try {
     var r = await api('/api/bot/setup', {
       method: 'POST',
-      body: payload
+      body: JSON.stringify({ bot_token: token, channel_id: channel, promotion_channel: promo })
     });
     toast('ربات «' + (r.bot_name || '') + '» تنظیم شد', 'ok');
     loadBotConfig();

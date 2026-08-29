@@ -104,7 +104,7 @@ class MTProtoProxyServer:
     on RAILWAY_TCP_APPLICATION_PORT while Uvicorn continues using PORT.
     """
 
-    def __init__(self, inbound_id: str, port: int, sni: str = "", destination: str = "", server_name: str = "", promotion_tag: str = ""):
+    def __init__(self, inbound_id: str, port: int, sni: str = "", destination: str = "", server_name: str = ""):
         self.inbound_id = inbound_id
         self.railway_domain, self.railway_public_port, railway_app_port = _railway_tcp_info()
         # The inbound's Internal Port is authoritative for the MTProxy listener.
@@ -117,7 +117,6 @@ class MTProtoProxyServer:
                 inbound_id, railway_app_port, self.port,
             )
         self.sni = self.destination = self.server_name = ""
-        self.promotion_tag = str(promotion_tag or "").strip()
         self._secrets_map: Dict[str, dict] = {}
         self._process: Optional[asyncio.subprocess.Process] = None
         self._running = False
@@ -171,10 +170,6 @@ class MTProtoProxyServer:
         ]
         if internal_ip and public_ip:
             cmd += ["--nat-info", f"{internal_ip}:{public_ip}"]
-        # MTProxy's -P parameter is a proxy tag issued by @MTProxybot.
-        # A channel URL itself cannot be converted into a valid tag locally.
-        if re.fullmatch(r"[0-9a-fA-F]{32}", self.promotion_tag):
-            cmd += ["-P", self.promotion_tag]
         cmd += secret_args
 
         domain, public_port, _ = _railway_tcp_info()
