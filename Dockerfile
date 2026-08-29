@@ -1,9 +1,5 @@
 FROM python:3.13-slim
 
-# Docker DNS: Google public DNS so the container can always resolve
-# external services (IP detection, Telegram API, Cloudflare, GitHub).
-RUN echo "nameserver 8.8.8.8\nnameserver 8.8.4.4" > /etc/resolv.conf
-
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
