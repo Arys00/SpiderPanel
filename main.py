@@ -1489,6 +1489,7 @@ async def _start_telegram_proxy(inbound_id: str, inbound: dict):
         "internal_port": int_port,
         "external_port": ext_port,
         "external_domain": ext_domain,
+        "promotion_channel": str(tg.get("promotion_channel") or "").strip(),
     }
     inbound["port"] = int_port
     inbound["external_port"] = ext_port
@@ -1506,7 +1507,7 @@ async def _start_telegram_proxy(inbound_id: str, inbound: dict):
                     u["telegram_secret"] = secret
                 secrets_map[secret] = {"user_id": uid, "config_uuid": config_uuid, "label": u.get("username", uid)}
 
-    server = MTProtoProxyServer(inbound_id=inbound_id, port=int_port)
+    server = MTProtoProxyServer(inbound_id=inbound_id, port=int_port, promotion_tag=str(tg.get("promotion_channel") or "").strip())
     server.update_secrets(secrets_map)
     if not secrets_map:
         logger.info(f"[TG Proxy {inbound_id}] no users yet; listener will start after a Telegram user is assigned")
@@ -2324,7 +2325,7 @@ async def ensure_default_link():
 # ── Basic endpoints ───────────────────────────────────────────────────────────
 @app.get("/")
 async def root():
-    return {"service": "Spider Gateway", "version": "9.2", "status": "active", "channel": "https://t.me/spider_vpn1"}
+    return {"service": "Spider Gateway", "version": "6.0", "status": "active", "channel": "https://t.me/spider_vpn1"}
 
 # ── Subscription ping (must be before /sub/{{identifier}}) ──────────────────
 @app.get("/sub/{identifier}/ping")
@@ -2344,6 +2345,53 @@ async def sub_ping_handler(identifier: str):
 
 
 # ── Subscription (single link / user sub page) ──────────────────────────────
+@app.get("/link/{uuid}", response_class=HTMLResponse)
+async def graphical_link_subscription(uuid: str, request: Request):
+    """Graphical subscription page for a user's config UUID.
+
+    v6 canonical URL: /link/{uuid}. The old /sub/{identifier} endpoint remains
+    available for backward compatibility.
+    """
+    if not _is_valid_uuid(uuid):
+        raise HTTPException(status_code=404, detail="Invalid subscription UUID")
+    async with USERS_LOCK:
+        user = next((dict(u, user_id=uid) for uid, u in USERS.items() if u.get("config_uuid") == uuid), None)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    # sub.html is the graphical subscription client; it now receives UUID, not username.
+    return FileResponse(_STATIC_DIR / "sub.html")
+
+@app.get("/api/link/{uuid}")
+async def graphical_link_data(uuid: str):
+    """Public subscription data lookup by config UUID for v6 /link/{uuid}."""
+    if not _is_valid_uuid(uuid):
+        raise HTTPException(status_code=404, detail="Invalid subscription UUID")
+    async with USERS_LOCK:
+        found = next(((uid, dict(u)) for uid,u in USERS.items() if u.get("config_uuid")==uuid), None)
+    if not found:
+        raise HTTPException(status_code=404, detail="User not found")
+    uid, user = found
+    # Reuse the same data builder used by the legacy username endpoint by locating the user.
+    return await api_user_sub(user.get("username", uid))
+
+@app.get("/api/link/{uuid}/qr")
+async def graphical_link_qr(uuid: str):
+    """QR for the canonical v6 graphical subscription URL."""
+    if not _is_valid_uuid(uuid):
+        raise HTTPException(status_code=404, detail="Invalid subscription UUID")
+    async with USERS_LOCK:
+        user = next((dict(u, user_id=uid) for uid,u in USERS.items() if u.get("config_uuid")==uuid), None)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    import qrcode
+    host = SETTINGS.get("domain") or get_host()
+    qr = qrcode.QRCode(version=1, box_size=8, border=2)
+    qr.add_data(f"https://{host}/link/{uuid}")
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    buf = io.BytesIO(); img.save(buf, format="PNG"); buf.seek(0)
+    return Response(content=buf.getvalue(), media_type="image/png")
+
 @app.get("/sub/{identifier}")
 async def subscription_handler(identifier: str, request: Request):
     """Smart handler: accepts UUID (config_uuid) → returns all user configs as base64.
@@ -4533,19 +4581,35 @@ async def settings_backup(_=Depends(require_auth)):
     ip_blacklist, worker config, password hash, and saved secret.
     """
     from fastapi.responses import Response
+    def _without_passwords(value):
+        # Never export the panel login password or any password_hash nested in state.
+        if isinstance(value, dict):
+            return {k: _without_passwords(v) for k, v in value.items() if k not in ("password_hash", "password")}
+        if isinstance(value, list):
+            return [_without_passwords(v) for v in value]
+        return value
+
+    scanned = {}
+    try:
+        SCANNED_DIR.mkdir(parents=True, exist_ok=True)
+        for p in SCANNED_DIR.glob("*.txt"):
+            scanned[p.name] = p.read_text(encoding="utf-8", errors="ignore")
+    except Exception as e:
+        logger.warning(f"Could not collect scanner files for backup: {e}")
+
     backup_data = {
-        "version": "1.0",
+        "version": "2.0",
         "timestamp": datetime.now().isoformat(),
-        "links": dict(LINKS),
-        "users": dict(USERS),
-        "subs": dict(SUBS),
-        "settings": dict(SETTINGS),
-        "groups": dict(GROUPS),
-        "inbounds": dict(INBOUNDS),
-        "ip_pool": list(IP_POOL),
-        "ip_blacklist": list(IP_BLACKLIST),
-        "worker": dict(WORKER),
-        "password_hash": AUTH["password_hash"],
+        "links": _without_passwords(dict(LINKS)),
+        "users": _without_passwords(dict(USERS)),
+        "subs": _without_passwords(dict(SUBS)),
+        "settings": _without_passwords(dict(SETTINGS)),
+        "groups": _without_passwords(dict(GROUPS)),
+        "inbounds": _without_passwords(dict(INBOUNDS)),
+        "ip_pool": _without_passwords(list(IP_POOL)),
+        "ip_blacklist": _without_passwords(list(IP_BLACKLIST)),
+        "worker": _without_passwords(dict(WORKER)),
+        "scanned_files": scanned,
         "saved_secret": CONFIG["secret"],
     }
     json_bytes = json.dumps(backup_data, ensure_ascii=False, indent=2).encode("utf-8")
@@ -4578,7 +4642,7 @@ async def settings_restore(request: Request, _=Depends(require_auth)):
 
         # Validate backup structure
         required_keys = ["users", "links", "subs", "settings", "groups", "inbounds",
-                         "ip_pool", "ip_blacklist", "worker", "password_hash", "saved_secret"]
+                         "ip_pool", "ip_blacklist", "worker", "saved_secret"]
         for key in required_keys:
             if key not in data:
                 raise HTTPException(status_code=400, detail=f"بکاپ ناقص است: فیلد {key} وجود ندارد")
@@ -4612,8 +4676,18 @@ async def settings_restore(request: Request, _=Depends(require_auth)):
             WORKER.clear()
             WORKER.update(data.get("worker", {}))
 
-        AUTH["password_hash"] = data.get("password_hash", "")
+        # Panel login password is intentionally NOT part of backups.
+        # Keep the password currently configured on this installation.
         CONFIG["secret"] = data.get("saved_secret", CONFIG["secret"])
+
+        # Restore scanner files when present; tolerate older backups without them.
+        scanned_payload = data.get("scanned_files") or {}
+        if isinstance(scanned_payload, dict):
+            SCANNED_DIR.mkdir(parents=True, exist_ok=True)
+            for name, content in scanned_payload.items():
+                if not re.fullmatch(r"[A-Za-z0-9_-]+\\.txt", str(name)):
+                    continue
+                (SCANNED_DIR / str(name)).write_text(str(content or ""), encoding="utf-8")
 
         # Rebuild indexes
         _rebuild_path_index()
@@ -4729,12 +4803,14 @@ async def _run_self_update():
 
         UPDATE_STATE["ok"] = True
         UPDATE_STATE["done"] = True
-        _update_log("بروزرسانی کامل شد — برای اعمال شدن، پنل را ری‌استارت کنید (Railway Deploy)")
+        UPDATE_STATE["running"] = False
+        _update_log("بروزرسانی کامل شد — برای اعمال شدن، پنل را ری‌استارت کنید (Railway)")
         log_activity("settings", f"پنل از GitHub بروزرسانی شد ({PANEL_REPO_URL})", "ok")
         return True
     except Exception as e:
         UPDATE_STATE["ok"] = False
         UPDATE_STATE["done"] = True
+        UPDATE_STATE["running"] = False
         _update_log(f"خطا: {e}")
         log_activity("settings", f"بروزرسانی ناموفق: {e}", "err")
         return False
@@ -6980,7 +7056,7 @@ async def _worker_push_config() -> dict:
     locations = []
     for code, p in (WORKER.get("proxies") or {}).items():
         locations.append({"code": code, "country": p.get("country", code.upper()),
-                          "proxy": p.get("proxy", ""), "port": p.get("port", 443),
+                          "proxy": p.get("proxy", ""), "port": 443,
                           "proxies": p.get("proxies", [p.get("proxy")])})
     try:
         async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
@@ -7055,7 +7131,7 @@ async def _worker_control_update() -> dict:
     locations = []
     for code, p in (WORKER.get("proxies") or {}).items():
         loc = {"code": code, "country": p.get("country", code.upper()),
-               "proxy": p.get("proxy", ""), "port": p.get("port", 443),
+               "proxy": p.get("proxy", ""), "port": 443,
                "proxies": p.get("proxies", [p.get("proxy")])}
         locations.append(loc)
     try:
@@ -7189,6 +7265,9 @@ async def _sync_worker_proxies_from_source() -> dict:
                     if p.get("manual")
                 }
                 parsed.update(manual)
+                # v6 Worker country routes always target relay IPs on TCP 443.
+                for _code, _loc in parsed.items():
+                    _loc["port"] = 443
                 WORKER["proxies"] = parsed
                 WORKER["sync_count"] = int(WORKER.get("sync_count", 0)) + 1
             deploy_ok = True
@@ -7303,9 +7382,8 @@ async def worker_setup(request: Request, _=Depends(require_auth)):
         raise HTTPException(status_code=400, detail="could not resolve workers.dev subdomain")
 
     # 4. Generate a fresh random worker name — every setup creates a NEW worker.
-    worker_name = str(body.get("worker_name") or "").strip().lower()
-    if not re.fullmatch(r"[a-z][a-z0-9-]{0,30}", worker_name or ""):
-        worker_name = "spider-" + secrets.token_hex(3)
+    # v6 always creates a fresh random Worker; the UI does not accept a custom name.
+    worker_name = "spider-" + secrets.token_hex(4)
     worker_domain = _worker_safe_domain(f"{worker_name}.{subdom}.workers.dev")
 
     # 5. Save connection state, then create KV + deploy.

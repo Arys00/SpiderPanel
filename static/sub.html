@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SPiDER PANEL</title>
+<link rel="icon" href="/static/spider-logo.svg" type="image/svg+xml">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
 <style>
 :root{
@@ -1435,7 +1436,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
       </button>
     </div>
     <div class="brand-center">
-      <div class="brand-title">SPiDER</div>
+      <img src="/static/spider-logo.svg" alt="SPiDER" style="width:58px;height:58px;object-fit:contain;margin:auto auto 8px;display:block"><div class="brand-title">SPiDER</div>
       <div class="brand-panel-row">
         <span class="brand-line"></span>
         <div class="brand-sub">PANEL</div>
@@ -1650,10 +1651,11 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script>
 (function(){
   "use strict";
-  // Live data pulled from the panel API (/api/sub/{username}). No hardcoded
-  // defaults — everything on this page is rendered from the real user record.
-  var uname = window.location.pathname.split('/').filter(Boolean).pop();
-  var apiUrl = '/api/sub/' + encodeURIComponent(uname);
+  // v6 canonical graphical subscription URL: /link/{uuid}.
+  // The UUID is the subscription identity; usernames are no longer used in the public URL.
+  var SUB_UUID = window.location.pathname.split('/').filter(Boolean).pop();
+  var uname = SUB_UUID;
+  var apiUrl = '/api/link/' + encodeURIComponent(SUB_UUID);
   var CONFIG_LINKS = [];
   var CONFIG_NAMES = [];
   var CONFIG_PROTOS = [];
@@ -2058,7 +2060,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 
     // ── Subscription link + ID ──
     SUB_ID = d.config_uuid || uname;
-    SUB_URL = window.location.origin + '/sub/' + SUB_ID;
+    SUB_URL = window.location.origin + '/link/' + SUB_ID;
     setText('subUrl', SUB_URL);
     setText('subId', SUB_ID);
 
