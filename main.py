@@ -451,12 +451,15 @@ WORKER: dict = {
     "auto_sync": True,
     "sync_error": "",
     "sync_count": 0,
-    # Tunnel: inbound (user → Railway → Worker → site)
-    # All modes (worker/tunnel/reverse) share a single SPIDER_KV namespace.
+    # Tunnel: dedicated KV + inbound (user → Railway → Worker → site)
+    "tunnel_kv_namespace_id": "",
+    "tunnel_kv_namespace_title": "",
     "tunnel_enabled": False,
     "tunnel_created_at": "",
     "tunnel_logs": [],
-    "reverse_enabled": False,
+    # Reverse: dedicated KV + mode flag (user → Worker → Railway → site)
+    "reverse_kv_namespace_id": "",
+    "reverse_kv_namespace_title": "",
 }
 WORKER_LOCK = asyncio.Lock()
 # Serialize source syncs (hourly loop + manual button can't overlap).
@@ -618,12 +621,8 @@ def _gen_reality_settings() -> dict:
             "mldsa65_verify": verify,
         }
     # Xray not available: fall back to a Python x25519 keypair so the panel
-    # still produces a working config shape. ML-DSA-65 seed is 32 bytes and
-    # must be URL-safe base64 WITHOUT padding — the exact format xray-core
-    # (26.3.27) emits and accepts. A 64-byte standard-base64 seed makes Xray
-    # reject the config with "invalid mldsa65Seed".
-    mldsa_seed = secrets.token_bytes(32)
-    mldsa_seed_b64 = b64.urlsafe_b64encode(mldsa_seed).decode().rstrip("=")
+    # still produces a working config shape.
+    mldsa_seed = secrets.token_bytes(64)
     try:
         priv_key, pub_key = _xray_x25519_keypair()
         return {
@@ -632,14 +631,14 @@ def _gen_reality_settings() -> dict:
             "short_id": secrets.token_hex(5)[:10],
             "spiderx": "/",
             "dest": "is1-ssl.mzstatic.com:443",
-            "mldsa65_seed": mldsa_seed_b64,
+            "mldsa65_seed": b64.b64encode(mldsa_seed).decode(),
             "mldsa65_verify": _gen_ml_dsa65(mldsa_seed),
         }
     except ImportError:
         return {
             "private_key": "", "public_key": "", "short_id": "5a3ff5a13d",
             "spiderx": "/", "dest": "is1-ssl.mzstatic.com:443",
-            "mldsa65_seed": mldsa_seed_b64,
+            "mldsa65_seed": b64.b64encode(mldsa_seed).decode(),
             "mldsa65_verify": _gen_ml_dsa65(mldsa_seed),
         }
 
@@ -1056,8 +1055,6 @@ def generate_telegram_proxy_link(user_id: str, user: dict, inbound: dict, remark
 
     The secret is deterministic per user (derived from config_uuid) and stored
     on the user record so it remains stable across config regenerations.
-    The optional `sponsor` parameter is the promotion channel set on the
-    Telegram inbound — Telegram shows it as the proxy's sponsor in the app.
     """
     from telegram_proxy import derive_secret_from_uuid
 
@@ -1078,19 +1075,9 @@ def generate_telegram_proxy_link(user_id: str, user: dict, inbound: dict, remark
     # Use stored secret or derive a stable one
     secret = user.get("telegram_secret") or derive_secret_from_uuid(config_uuid)
 
-    # Telegram t.me/proxy links support a `sponsor` param (the promo channel)
-    # which is shown inside the app when the proxy is added. Fall back to the
-    # global bot promotion channel if the inbound hasn't set its own.
-    sponsor = str(tg.get("promotion_channel") or "").strip()
-    if not sponsor:
-        sponsor = str(BOT_CONFIG.get("promotion_channel") or "").strip()
-    # Strip any scheme so the sponsor renders cleanly as a t.me link.
-    if sponsor:
-        sponsor = sponsor.rstrip("/").replace("https://", "").replace("http://", "")
-    params = f"server={external_domain}&port={external_port}&secret={secret}"
-    if sponsor:
-        params += f"&sponsor={quote(sponsor)}"
-    link = f"https://t.me/proxy?{params}"
+    # Note: Telegram t.me/proxy links don't support #remark fragment like VLESS links
+    # The name is set by the user in the Telegram app after adding the proxy
+    link = f"https://t.me/proxy?server={external_domain}&port={external_port}&secret={secret}"
     return link
 
 
@@ -1929,7 +1916,7 @@ def generate_user_config(user_id: str, user: dict, inbound_id: str = None, addr:
             return ""
         # Reverse switch ON: user → Worker → Railway → site. The config is
         # addressed to the WORKER domain with path /reverse/{uuid} and the
-        # user's record lives in SPIDER_KV.
+        # user's record lives in REVERSE_KV.
         if inbound and inbound.get("reverse_enabled"):
             rpath = f"/reverse/{config_uuid}"
             params = ("encryption=none&security=tls&type=ws"
@@ -2449,7 +2436,6 @@ async def subscription_handler(identifier: str, request: Request):
 
     raise HTTPException(status_code=404, detail="not found")
 
-
 @app.get("/sub-all")
 async def subscription_all(_=Depends(require_auth)):
     import base64
@@ -2943,7 +2929,7 @@ async def ws_uuid_handler(ws: WebSocket, uuid: str):
 # Tunnel path: /tunnel/{uuid} — user → Railway (here) → Cloudflare Worker → site.
 # Railway accepts the client's TLS+WS, then relays raw VLESS bytes to the Worker
 # over an outbound WSS connection to /{uuid} on the worker domain. The Worker
-# authenticates the user from its SPIDER_KV and connects out to the target.
+# authenticates the user from its TUNNEL_KV and connects out to the target.
 @app.websocket("/tunnel/{uuid}")
 async def tunnel_ws_handler(ws: WebSocket, uuid: str):
     wdom = _worker_safe_domain(WORKER.get("worker_domain"))
@@ -6562,9 +6548,10 @@ def _worker_public() -> dict:
         "sync_count": int(WORKER.get("sync_count", 0)),
         "token_link": CF_TOKEN_LINK,
         "tunnel_enabled": bool(WORKER.get("tunnel_enabled", False)),
-        "reverse_enabled": bool(WORKER.get("reverse_enabled", False)),
-        "spi_key": WORKER.get("control_token", ""),
-        "panel_api_key": PANEL_API_KEY,
+        "tunnel_kv_namespace_id": WORKER.get("tunnel_kv_namespace_id", ""),
+        "tunnel_kv_namespace_title": WORKER.get("tunnel_kv_namespace_title", ""),
+        "reverse_kv_namespace_id": WORKER.get("reverse_kv_namespace_id", ""),
+        "reverse_kv_namespace_title": WORKER.get("reverse_kv_namespace_title", ""),
         "proxies": [
             {"code": code, **dict(p)}
             for code, p in sorted((WORKER.get("proxies") or {}).items())
@@ -6613,6 +6600,85 @@ async def _ensure_worker_kv() -> str | None:
     return None
 
 
+async def _ensure_tunnel_kv() -> str | None:
+    """Find or create the TUNNEL's own KV namespace ({worker}-tunnel-db).
+
+    The tunnel keeps its state separate from the main worker KV. The name is
+    derived from the worker's KV title so the pairing is always obvious.
+    """
+    acct = str(WORKER.get("account_id") or "")
+    cf_token = str(WORKER.get("token") or "")
+    if not acct or not cf_token:
+        return None
+    existing = str(WORKER.get("tunnel_kv_namespace_id") or "")
+    if existing:
+        return existing
+    wname = str(WORKER.get("worker_name") or "").strip()
+    base = f"{wname}-db" if wname else "spider-worker-kv"
+    kv_title = f"{base}-tunnel"  # e.g. spider-a1b2c3-db-tunnel
+    code, data = await _cf_api("GET", f"/accounts/{acct}/storage/kv/namespaces", cf_token, email="")
+    if code == 200:
+        for ns in (data.get("result") or []):
+            if ns.get("title") == kv_title:
+                async with WORKER_LOCK:
+                    WORKER["tunnel_kv_namespace_id"] = ns.get("id")
+                    WORKER["tunnel_kv_namespace_title"] = kv_title
+                asyncio.create_task(save_state())
+                return ns.get("id")
+    code, data = await _cf_api(
+        "POST", f"/accounts/{acct}/storage/kv/namespaces",
+        cf_token, {"title": kv_title}, email="",
+    )
+    if code == 200 and data.get("result"):
+        nid = data["result"].get("id")
+        async with WORKER_LOCK:
+            WORKER["tunnel_kv_namespace_id"] = nid
+            WORKER["tunnel_kv_namespace_title"] = kv_title
+        asyncio.create_task(save_state())
+        return nid
+    return None
+
+
+async def _ensure_reverse_kv() -> str | None:
+    """Find or create the REVERSE's own KV namespace ({worker}-db-reverse).
+
+    Reverse mode: user → Worker → Railway → site. Its state (users, usage)
+    lives in a third dedicated namespace so tunnel/reverse/worker never share
+    keys and can never interfere with each other.
+    """
+    acct = str(WORKER.get("account_id") or "")
+    cf_token = str(WORKER.get("token") or "")
+    if not acct or not cf_token:
+        return None
+    existing = str(WORKER.get("reverse_kv_namespace_id") or "")
+    if existing:
+        return existing
+    wname = str(WORKER.get("worker_name") or "").strip()
+    base = f"{wname}-db" if wname else "spider-worker-kv"
+    kv_title = f"{base}-reverse"  # e.g. spider-a1b2c3-db-reverse
+    code, data = await _cf_api("GET", f"/accounts/{acct}/storage/kv/namespaces", cf_token, email="")
+    if code == 200:
+        for ns in (data.get("result") or []):
+            if ns.get("title") == kv_title:
+                async with WORKER_LOCK:
+                    WORKER["reverse_kv_namespace_id"] = ns.get("id")
+                    WORKER["reverse_kv_namespace_title"] = kv_title
+                asyncio.create_task(save_state())
+                return ns.get("id")
+    code, data = await _cf_api(
+        "POST", f"/accounts/{acct}/storage/kv/namespaces",
+        cf_token, {"title": kv_title}, email="",
+    )
+    if code == 200 and data.get("result"):
+        nid = data["result"].get("id")
+        async with WORKER_LOCK:
+            WORKER["reverse_kv_namespace_id"] = nid
+            WORKER["reverse_kv_namespace_title"] = kv_title
+        asyncio.create_task(save_state())
+        return nid
+    return None
+
+
 async def _worker_deploy() -> tuple:
     """Deploy (or re-deploy) the VLESS worker script.
 
@@ -6646,6 +6712,8 @@ async def _worker_deploy() -> tuple:
     if not cf_token:
         return 0, {"errors": [{"message": "Cloudflare API token is missing (worker not connected properly)"}]}
     kv_id = await _ensure_worker_kv()
+    tunnel_kv_id = await _ensure_tunnel_kv() if WORKER.get("tunnel_enabled") else None
+    reverse_kv_id = await _ensure_reverse_kv() if WORKER.get("tunnel_enabled") else None
     email = ""
     # Use Global API Key auth (X-Auth-Email + X-Auth-Key) when the token is a
     # real GAK (cfk_/cf_ prefix or 37-char hex); otherwise a Bearer token always
@@ -6659,12 +6727,16 @@ async def _worker_deploy() -> tuple:
         # ESM module worker: multipart upload using the `files` form field so
         # Cloudflare parses it as a module-syntax worker (Content-Type must be
         # application/javascript+module), with main_module metadata and the KV
-        # namespace bindings. A single SPIDER_KV namespace backs users, routes,
-        # tunnel and reverse (all modes share one KV). The template uses the
-        # global connect()
+        # namespace bindings (SPIDER_KV for users/routes, TUNNEL_KV +
+        # REVERSE_KV when the tunnel/reverse is enabled — three fully separate
+        # namespaces). The template uses the global connect()
         # Socket API for outbound TCP, so no fetcher binding is needed.
         wname = WORKER.get("worker_name", "") or ""
         bindings = [{"name": "SPIDER_KV", "namespace_id": kv_id, "type": "kv_namespace"}]
+        if tunnel_kv_id:
+            bindings.append({"name": "TUNNEL_KV", "namespace_id": tunnel_kv_id, "type": "kv_namespace"})
+        if reverse_kv_id:
+            bindings.append({"name": "REVERSE_KV", "namespace_id": reverse_kv_id, "type": "kv_namespace"})
         meta = json.dumps({
             "main_module": "worker.js",
             "compatibility_date": "2025-01-01",
@@ -7459,7 +7531,7 @@ async def worker_inbounds(_=Depends(require_auth)):
 # TUNNEL — user → Railway → Cloudflare Worker → site
 # The tunnel inbound is a TLS+WS inbound on the RAILWAY domain with path
 # /tunnel/{uuid}. Railway forwards to the Worker; the Worker connects out to
-# the destination. The tunnel uses the shared SPIDER_KV namespace.
+# the destination. The tunnel has its own dedicated KV namespace (TUNNEL_KV).
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _tunnel_log(msg: str):
@@ -7471,26 +7543,29 @@ def _tunnel_log(msg: str):
 
 @app.post("/api/tunnel/create")
 async def tunnel_create(_=Depends(require_auth)):
-    """Create the Tunnel inbound.
+    """Create the Tunnel inbound + its dedicated KV namespace.
 
-    All worker/tunnel/reverse state lives in the single SPIDER_KV namespace,
-    so no separate KV is created here. Steps:
-      1. mark tunnel_enabled → re-deploy (SPIDER_KV already bound),
-      2. create/refresh the 'default-tunnel' inbound: TLS + WS on the Railway
+    Steps:
+      1. ensure the TUNNEL_KV namespace exists ({worker}-db-tunnel),
+      2. mark tunnel_enabled → next deploy binds TUNNEL_KV and re-deploys,
+      3. create/refresh the 'default-tunnel' inbound: TLS + WS on the Railway
          panel domain with ws path /tunnel/{uuid}.
     """
     if not WORKER.get("connected"):
         raise HTTPException(status_code=400, detail="worker is not connected")
+    kv_id = await _ensure_tunnel_kv()
+    if not kv_id:
+        raise HTTPException(status_code=500, detail="could not create tunnel KV namespace")
     async with WORKER_LOCK:
         WORKER["tunnel_enabled"] = True
         if not WORKER.get("tunnel_created_at"):
             WORKER["tunnel_created_at"] = now_ir().isoformat(timespec="seconds")
-        _tunnel_log(f"Tunnel فعال شد — KV مشترک (SPIDER_KV) استفاده می‌شود")
-    # Re-deploy so the SPIDER_KV binding is live (no extra KV needed).
+        _tunnel_log(f"Tunnel KV ساخته شد: {WORKER.get('tunnel_kv_namespace_title')}")
+    # Re-deploy so the TUNNEL_KV binding goes live.
     sc, sd = await _worker_deploy()
     ok_deploy = sc in (200, 201, 409)
     async with WORKER_LOCK:
-        _tunnel_log("Worker re-deploy شد" if ok_deploy else f"deploy ناموفق: {sc}")
+        _tunnel_log("Worker با binding جدید deploy شد" if ok_deploy else f"deploy ناموفق: {sc}")
     panel_domain = _safe_host(SETTINGS.get("domain"), get_host())
     async with INBOUNDS_LOCK:
         INBOUNDS["default-tunnel"] = {
@@ -7557,9 +7632,13 @@ async def tunnel_status(_=Depends(require_auth)):
         "worker_url": WORKER.get("worker_url", ""),
         "worker_domain": wdom,
         "panel_domain": _safe_host(SETTINGS.get("domain"), get_host()),
-        "reverse_enabled": bool(WORKER.get("reverse_enabled")),
+        "tunnel_kv_title": WORKER.get("tunnel_kv_namespace_title", ""),
+        "tunnel_kv_id": WORKER.get("tunnel_kv_namespace_id", ""),
+        "reverse_enabled": bool(tid and (INBOUNDS[tid] or {}).get("reverse_enabled")),
         "reverse_ping_ms": rev_ping_ms,
-        "reverse_path": f"/reverse/{{uuid}}" if WORKER.get("reverse_enabled") else "",
+        "reverse_path": f"/reverse/{{uuid}}" if (tid and (INBOUNDS[tid] or {}).get("reverse_enabled")) else "",
+        "reverse_kv_title": WORKER.get("reverse_kv_namespace_title", ""),
+        "reverse_kv_id": WORKER.get("reverse_kv_namespace_id", ""),
         "last_heartbeat": WORKER.get("last_heartbeat", ""),
         "remote_status": WORKER.get("remote_status", ""),
         "logs": list(WORKER.get("tunnel_logs") or [])[-30:],
@@ -7571,7 +7650,7 @@ async def tunnel_reverse_toggle(request: Request, _=Depends(require_auth)):
     """Toggle reverse mode on the tunnel inbound.
 
     ON:  user → Worker → Railway → site; config domain = worker domain,
-         ws path /reverse/{uuid}; all state lives in the shared SPIDER_KV.
+         ws path /reverse/{uuid}; user records live in REVERSE_KV.
     OFF: back to the plain tunnel chain (user → Railway → Worker → site).
     """
     body = await request.json()
@@ -7596,16 +7675,15 @@ async def tunnel_reverse_toggle(request: Request, _=Depends(require_auth)):
     async with INBOUNDS_LOCK:
         INBOUNDS[tid]["reverse_enabled"] = enabled
     if enabled:
-        # reverse uses the shared SPIDER_KV — no separate KV needed.
+        # tunnel_enabled gates the TUNNEL_KV + REVERSE_KV bindings at deploy.
         async with WORKER_LOCK:
             WORKER["tunnel_enabled"] = True
-            WORKER["reverse_enabled"] = True
+        kv_ok = await _ensure_reverse_kv()
+        if not kv_ok:
+            raise HTTPException(status_code=500, detail="could not create reverse KV namespace")
         async with WORKER_LOCK:
-            _tunnel_log("Reverse با KV مشترک (SPIDER_KV) آماده شد")
-    else:
-        async with WORKER_LOCK:
-            WORKER["reverse_enabled"] = False
-    # Re-deploy so the SPIDER_KV binding is live when first needed.
+            _tunnel_log(f"Reverse KV آماده شد: {WORKER.get('reverse_kv_namespace_title')}")
+    # Re-deploy so the REVERSE_KV binding goes live when first needed.
     sc, sd = await _worker_deploy()
     ok_deploy = sc in (200, 201, 409)
     if enabled and ok_deploy:
@@ -7614,7 +7692,7 @@ async def tunnel_reverse_toggle(request: Request, _=Depends(require_auth)):
     async with WORKER_LOCK:
         if enabled:
             _tunnel_log(f"Reverse فعال شد — دامنه {wdom} با مسیر /reverse/{{uuid}}")
-            _tunnel_log("Worker re-deploy شد" if ok_deploy else f"deploy ناموفق: {sc}")
+            _tunnel_log("Worker با REVERSE_KV deploy شد" if ok_deploy else f"deploy ناموفق: {sc}")
         else:
             _tunnel_log("Reverse غیرفعال شد")
     log_activity("tunnel", f"Reverse {'فعال' if enabled else 'غیرفعال'} شد", "ok")
@@ -8037,35 +8115,9 @@ async def add_node(request: Request, _=Depends(require_auth)):
             "last_sync": datetime.now().isoformat(),
             "created_at": datetime.now().isoformat(),
         }
-    # Auto-create a node inbound so the node is immediately usable as an outbound.
-    _node_host = url.replace("https://", "").replace("http://", "").rstrip("/")
-    _node_sni = _node_host
-    _node_uuid = generate_uuid()
-    _inbound_id = f"default-node-{node_id}"
-    INBOUNDS[_inbound_id] = {
-        "name": f"Node: {uname}",
-        "node_id": node_id,
-        "protocol": "node",
-        "port": 443,
-        "network": "ws",
-        "security": "tls",
-        "domain": _node_host,
-        "external_domain": _node_host,
-        "sni": _node_sni,
-        "external_port": 443,
-        "fingerprint": "chrome",
-        "uuid": _node_uuid,
-        "reality_settings": {},
-        "xhttp_settings": {},
-        "ws_settings": {"path": f"/node/{_node_uuid}"},
-        "grpc_settings": {},
-        "created_at": datetime.now().isoformat(),
-    }
     asyncio.create_task(save_state())
-    asyncio.create_task(_xray_apply())
-    log_activity("node", f"نود «{uname}» اضافه شد + اینباند ساخته شد", "ok")
-    return {"ok": True, "node_id": node_id, "name": uname, "region": region,
-            "inbound_id": _inbound_id}
+    log_activity("node", f"نود «{uname}» اضافه شد", "ok")
+    return {"ok": True, "node_id": node_id, "name": uname, "region": region}
 
 
 @app.delete("/api/nodes/{node_id}")
@@ -8145,27 +8197,19 @@ async def _create_user_on_nodes(config_uuid: str, user_data: dict):
 
 @app.get("/subs/{uuid}")
 async def subscription_by_uuid(uuid: str, request: Request):
-    """Subscription URL: /subs/{config_uuid} returns raw configs (VPN clients);
-    /subs/{username} serves the graphical subscription page (sub.html)."""
+    """New subscription URL: /subs/{config_uuid}"""
     import base64
-
-    # Username form → serve the graphical subscription page.
-    if not _is_valid_uuid(uuid):
-        async with USERS_LOCK:
-            for uid, u in USERS.items():
-                if u.get("username") == uuid:
-                    return FileResponse(_os.path.join(_STATIC_DIR, "sub.html"))
-        raise HTTPException(status_code=404, detail="not found")
 
     # 1) Search by config_uuid
     target_user = None
     target_uid = None
-    async with USERS_LOCK:
-        for uid, u in USERS.items():
-            if u.get("config_uuid") == uuid:
-                target_user = u
-                target_uid = uid
-                break
+    if _is_valid_uuid(uuid):
+        async with USERS_LOCK:
+            for uid, u in USERS.items():
+                if u.get("config_uuid") == uuid:
+                    target_user = u
+                    target_uid = uid
+                    break
 
     if not target_user:
         # Try subscription_uuid
@@ -8507,7 +8551,6 @@ async def _bot_loop():
             asyncio.create_task(save_state())
 
             # 4) Generate QR code of the subscription link
-            host = _safe_host(SETTINGS.get("domain"), get_host())
             sub_url = f"https://{host}/subs/{cuuid}"
             qr_img_url = ""
             try:

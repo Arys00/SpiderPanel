@@ -149,9 +149,6 @@ body{background:var(--bg);color:var(--text);font-family:Vazirmatn,system-ui,sans
 .section-title .line{flex:1;height:1px;background:var(--border)}
 .configs-list{display:flex;flex-direction:column;gap:9px}
 .config-card{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px 13px;transition:border-color .25s ease,background-color .32s ease,transform .35s cubic-bezier(.34,1.4,.64,1);box-shadow:0 3px 14px -4px rgba(0,0,0,.06);position:relative;overflow:hidden}
-/* Yours section progress */
-.yours-progress{height:6px;border-radius:3px;background:rgba(255,255,255,.08);margin:6px 0 12px;overflow:hidden}
-.yours-progress-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--cyan),var(--magenta));width:0%;transition:width .6s ease}
 .config-card::before{content:"";position:absolute;inset:0;border-radius:14px;padding:1px;background:linear-gradient(135deg,transparent 40%,rgba(0,180,216,.0),transparent 60%);-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:0;transition:opacity .45s ease;pointer-events:none}
 .config-card:hover{border-color:color-mix(in srgb,var(--cyan) 55%,var(--border));transform:translateY(-3px) scale(1.008);box-shadow:0 14px 36px -10px rgba(0,180,216,.25),0 0 32px -8px rgba(233,30,140,.15),0 4px 12px -2px rgba(0,0,0,.08)}
 .config-card:hover::before{opacity:1;background:linear-gradient(135deg,rgba(0,180,216,.45),rgba(124,58,237,.2),rgba(233,30,140,.4))}
@@ -1597,7 +1594,6 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
   <div class="filter-bar">
     <div class="chip-row">
       <span class="chip active" data-filter="all" data-i18n="all">همه</span>
-      <span class="chip" data-filter="yours">📁 Yours</span>
       <span class="chip" data-filter="proxy">Proxy</span>
       <span class="chip" data-filter="wireguard">WireGuard</span>
       <span class="chip" data-filter="tls">TLS</span>
@@ -1609,11 +1605,6 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
     </div>
   </div>
 
-  <div id="yours">
-    <div class="section-title"><span>📁 Yours</span> (<span id="yoursCount">0</span>)<div class="line"></div></div>
-    <div class="yours-progress"><div class="yours-progress-fill" id="yoursBar"></div></div>
-    <div class="configs-list" id="yoursList"></div>
-  </div>
   <div class="section-title"><span data-i18n="yourConfigs">کانفیگ‌های شما</span> (<span id="cfgCount">0</span>)<div class="line"></div></div>
   <div class="configs-list" id="configList"></div>
   <div class="social-section">
@@ -1942,17 +1933,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
   var ACTIVE_FILTER = "all";
   function applyFilters() {
     var q = ((document.getElementById("searchInput") || {}).value || "").trim().toLowerCase();
-    var yoursSection = document.getElementById("yoursList");
-    var cfgSection = document.getElementById("configList");
-    var showYours = ACTIVE_FILTER === "yours";
-    // Toggle whole sections based on filter
-    if (document.getElementById("yours") && document.getElementById("yours").parentNode) {
-      document.getElementById("yours").style.display = showYours ? "" : "none";
-    }
-    if (yoursSection) yoursSection.style.display = showYours ? "" : "none";
-    if (cfgSection) cfgSection.style.display = showYours ? "none" : "";
-    if (showYours) return;
-    document.querySelectorAll("#configList .config-card").forEach(function(c, i) {
+    document.querySelectorAll(".config-card").forEach(function(c, i) {
       var tags = (c.getAttribute("data-tags") || "").toLowerCase();
       var n = ((c.querySelector(".config-name") || {}).textContent || "").toLowerCase();
       var p = ((c.querySelector(".config-proto") || {}).textContent || "").toLowerCase();
@@ -2008,54 +1989,31 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
     return tags.join(' ') || 'other';
   }
 
-  function renderOneCard(link, names, protos, i) {
-    var card = document.createElement('div');
-    card.className = 'config-card';
-    card.setAttribute('data-index', i);
-    card.setAttribute('data-tags', dataProtoKey(link));
-    var color = ['var(--cyan)', 'var(--magenta)', 'var(--gold)', 'var(--orange)', 'var(--success)'][i % 5];
-    card.innerHTML =
-      '<div class="config-left">' +
-        '<div class="proto-icon"><svg viewBox="0 0 24 24" fill="none" stroke="' + color + '" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 015 0c0 1.5-2 2-2 3.5M12 17h.01" stroke-linecap="round"/></svg></div>' +
-        '<div class="config-info"><span class="config-name">' + esc(names[i] || ('Config ' + (i + 1))) + '</span><span class="config-proto">' + esc(protos[i] || protoOf(link)) + '</span></div>' +
-      '</div>' +
-      '<div class="config-actions">' +
-        '<button class="icon-btn copy-cfg" type="button" data-index="' + i + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>' +
-        '<button class="icon-btn qr-btn" type="button" data-index="' + i + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M20 20v.01"/></svg></button>' +
-      '</div>';
-    return card;
-  }
-
-  var YOURS_LINKS = [];
-  var YOURS_NAMES = [];
-  var YOURS_PROTOS = [];
-
   function renderConfigs() {
     var list = document.getElementById("configList");
     if (!list) return;
     list.innerHTML = '';
-    CONFIG_LINKS.forEach(function(link, i) { list.appendChild(renderOneCard(link, CONFIG_NAMES, CONFIG_PROTOS, i)); });
+    var iconColors = ['var(--cyan)', 'var(--magenta)', 'var(--gold)', 'var(--orange)', 'var(--success)'];
+    CONFIG_LINKS.forEach(function(link, i) {
+      var card = document.createElement('div');
+      card.className = 'config-card';
+      card.setAttribute('data-index', i);
+      card.setAttribute('data-tags', dataProtoKey(link));
+      var color = iconColors[i % iconColors.length];
+      card.innerHTML =
+        '<div class="config-left">' +
+          '<div class="proto-icon"><svg viewBox="0 0 24 24" fill="none" stroke="' + color + '" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 015 0c0 1.5-2 2-2 3.5M12 17h.01" stroke-linecap="round"/></svg></div>' +
+          '<div class="config-info"><span class="config-name">' + esc(CONFIG_NAMES[i] || ('Config ' + (i + 1))) + '</span><span class="config-proto">' + esc(CONFIG_PROTOS[i] || protoOf(link)) + '</span></div>' +
+        '</div>' +
+        '<div class="config-actions">' +
+          '<button class="icon-btn copy-cfg" type="button" data-index="' + i + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>' +
+          '<button class="icon-btn qr-btn" type="button" data-index="' + i + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M20 20v.01"/></svg></button>' +
+        '</div>';
+      list.appendChild(card);
+    });
     var cnt = document.getElementById('cfgCount');
     if (cnt) cnt.textContent = String(CONFIG_LINKS.length);
     bind(); // re-bind copy/qr/search/filter handlers for the new cards
-  }
-
-  function renderYours() {
-    var list = document.getElementById("yoursList");
-    if (!list) return;
-    list.innerHTML = '';
-    if (!YOURS_LINKS.length) {
-      list.innerHTML = '<div style="text-align:center;padding:16px;color:var(--muted);font-size:13px">هیچ کانفیگ ساخته‌شده‌ای (Yours) نیست</div>';
-    } else {
-      YOURS_LINKS.forEach(function(link, i) { list.appendChild(renderOneCard(link, YOURS_NAMES, YOURS_PROTOS, i)); });
-    }
-    var cnt = document.getElementById('yoursCount');
-    if (cnt) cnt.textContent = String(YOURS_LINKS.length);
-    var total = YOURS_LINKS.length + CONFIG_LINKS.length;
-    var pct = total > 0 ? Math.round(YOURS_LINKS.length / total * 100) : 0;
-    var bar = document.getElementById('yoursBar');
-    if (bar) bar.style.width = pct + '%';
-    bind();
   }
 
   function setText(id, val) {
@@ -2091,14 +2049,6 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
     }
     if (!cfgs.length && d.config) cfgs = [d.config];
     CONFIG_LINKS = cfgs;
-    // ── Yours: custom configs built by the user (custom IP / SNI spoof) ──
-    YOURS_LINKS = Array.isArray(d.custom_configs) ? d.custom_configs.filter(Boolean) : [];
-    if (!YOURS_LINKS.length && Array.isArray(d.sni_spoof_configs)) YOURS_LINKS = d.sni_spoof_configs.filter(Boolean);
-    YOURS_NAMES = YOURS_LINKS.map(function(c) {
-      var h = c.split('#');
-      try { return decodeURIComponent((h[1] || '').replace(/\+/g, ' ')) || 'Yours'; } catch (e) { return 'Yours'; }
-    });
-    YOURS_PROTOS = YOURS_LINKS.map(protoOf);
     CONFIG_NAMES = cfgs.map(function(c) {
       var h = c.split('#');
       try { return decodeURIComponent((h[1] || '').replace(/\+/g, ' ')) || 'Config'; }
@@ -2175,7 +2125,6 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
     document.title = 'Subscription | ' + (d.username || uname);
 
     renderConfigs();
-    renderYours();
   }
 
   async function load() {

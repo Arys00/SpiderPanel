@@ -425,9 +425,6 @@ input,select,button,textarea{font-family:inherit}
 .glass-panel { background: rgba(255,255,255,.05); backdrop-filter: blur(10px); border: 1px solid var(--border); border-radius: 16px; padding: 16px; }
 .scn-pane { display: none; animation: fadeIn .25s ease; }
 .scn-pane.active { display: block; }
-/* Inline panes live inside the vertical accordion — always rendered, visibility
-   handled by the parent .acc-item.open toggle. */
-.scn-pane-inline { display: block; padding-top: 4px; }
 .scn-cfg { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 12px; }
 .scn-cfg .f-g { margin-bottom: 0; min-width: 120px; }
 .scn-live { margin-top: 12px; }
@@ -1099,16 +1096,17 @@ tr{animation:fadeIn .3s ease}
         <div class="panel">
           <div class="panel-h"><span class="glow" data-i18n="tab.scanner">اسکنر آی‌پی</span><span class="badge badge-g" style="margin-right:auto;animation:pulse 1.5s infinite"><span data-i18n="live">● LIVE</span></span></div>
 
-          <!-- Sub-tab selector (vertical accordion) -->
-          <div class="acc-group" id="scn-acc" style="margin-top:14px">
-            <div class="acc-item open" data-acc="scn-cf">
-              <div class="acc-head" onclick="accToggle('scn-cf'); scnSwitch('cf')">
-                <span class="glow" style="font-size:14px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg> Cloudflare</span>
-                <span class="acc-arrow" id="acc-arrow-scn-cf">▼</span>
-              </div>
-              <div class="acc-body" id="acc-body-scn-cf">
+          <!-- Sub-tab selector -->
+          <div class="scn-tabs" role="tablist">
+            <button class="scn-tab active" id="scn-tab-cf" onclick="scnSwitch('cf',this)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg> Cloudflare</button>
+            <button class="scn-tab" id="scn-tab-railway" onclick="scnSwitch('railway',this)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M7 19h10M4 19H3v-3l2-5h11l3 5v3h-1M5 11l1-7h9l1 7"/></svg> Railway</button>
+            <button class="scn-tab" id="scn-tab-tcp" onclick="scnSwitch('tcp',this)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 7a3 3 0 0 1-3 3 3 3 0 0 1 0 6 3 3 0 0 1-3-3"/><path d="M14 17a3 3 0 0 1 3-3 3 3 0 0 1 0-6 3 3 0 0 1 3 3"/></svg> TCP</button>
+            <button class="scn-tab" id="scn-tab-spoof" onclick="scnSwitch('spoof',this)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 6v6M12 14v2"/></svg> Spoof</button>
+            <button class="scn-tab" id="scn-tab-sni" onclick="scnSwitch('sni',this)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> SNI</button>
+          </div>
+
           <!-- CLOUDFLARE PANE -->
-          <div class="scn-pane-inline" id="scn-pane-cf">
+          <div class="scn-pane active" id="scn-pane-cf">
             <div class="scn-cfg">
               <div class="f-g"><label data-i18n="ipCount">تعداد IP</label><input type="number" id="scn-cf-count" value="30" min="1" max="100"></div>
               <div class="f-g"><label data-i18n="targetPort">پورت هدف</label><select id="scn-cf-port"><option value="443">443</option><option value="2053">2053</option><option value="8443">8443</option><option value="2083">2083</option></select></div>
@@ -1131,17 +1129,9 @@ tr{animation:fadeIn .3s ease}
               <div class="scn-saved-tags" id="scn-cf-saved-tags"><span class="scn-empty" data-i18n="notSaved">هنوز ذخیره‌ای نیست</span></div>
             </div>
           </div>
-              </div><!-- /acc-body-scn-cf -->
-            </div><!-- /acc-item scn-cf -->
 
-            <!-- RAILWAY PANE -->
-            <div class="acc-item" data-acc="scn-railway">
-              <div class="acc-head" onclick="accToggle('scn-railway'); scnSwitch('railway')">
-                <span class="glow" style="font-size:14px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M7 19h10M4 19H3v-3l2-5h11l3 5v3h-1M5 11l1-7h9l1 7"/></svg> Railway</span>
-                <span class="acc-arrow" id="acc-arrow-scn-railway">▼</span>
-              </div>
-              <div class="acc-body" id="acc-body-scn-railway">
-          <div class="scn-pane-inline" id="scn-pane-railway">
+          <!-- RAILWAY PANE -->
+          <div class="scn-pane" id="scn-pane-railway">
             <div class="scn-cfg">
               <div class="f-g"><label data-i18n="ipCount">تعداد IP</label><input type="number" id="scn-rw-count" value="30" min="1" max="100"></div>
               <div class="f-g"><label data-i18n="targetPort">پورت هدف</label><select id="scn-rw-port"><option value="443">443</option><option value="8080">8080</option><option value="80">80</option></select></div>
@@ -1163,17 +1153,10 @@ tr{animation:fadeIn .3s ease}
               <div class="scn-saved-t"><span data-i18n="savedFirst10">ذخیره شده (اولین ۱۰ آی‌پی)</span> — <button class="btn btn-sm btn-g" onclick="scnClearSaved('railway')"><span data-i18n="clear">پاک کردن</span></button></div>
               <div class="scn-saved-tags" id="scn-rw-saved-tags"><span class="scn-empty" data-i18n="notSaved">هنوز ذخیره‌ای نیست</span></div>
             </div>
-              </div><!-- /acc-body-scn-railway -->
-            </div><!-- /acc-item scn-railway -->
+          </div>
 
-            <!-- TCP PANE -->
-            <div class="acc-item" data-acc="scn-tcp">
-              <div class="acc-head" onclick="accToggle('scn-tcp'); scnSwitch('tcp')">
-                <span class="glow" style="font-size:14px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 7a3 3 0 0 1-3 3 3 3 0 0 1 0 6 3 3 0 0 1-3-3"/><path d="M14 17a3 3 0 0 1 3-3 3 3 0 0 1 0-6 3 3 0 0 1 3 3"/></svg> TCP</span>
-                <span class="acc-arrow" id="acc-arrow-scn-tcp">▼</span>
-              </div>
-              <div class="acc-body" id="acc-body-scn-tcp">
-          <div class="scn-pane-inline" id="scn-pane-tcp">
+          <!-- TCP PANE -->
+          <div class="scn-pane" id="scn-pane-tcp">
             <div class="scn-hint px-hint" data-i18n="scnTcpTip">دامنه موردنظر را وارد کنید؛ IP دامنه (DNS) نمایش داده می‌شود و پینگ TCP آن به صورت زنده گزارش می‌شود. دامنه‌های Railway به صورت پیش‌فرض وجود دارند و قابل افزودن/حذف هستند.</div>
             <div class="scn-dom-add">
               <input type="text" id="scn-tcp-domain" placeholder="example.proxy.rlwy.net" dir="ltr">
@@ -1182,18 +1165,10 @@ tr{animation:fadeIn .3s ease}
             <div class="scn-dom-list" id="scn-tcp-list"></div>
             <button class="btn btn-p" style="width:100%" onclick="scnRunTCP()"><span data-i18n="checkDomains">شروع بررسی دامنه‌ها</span></button>
             <div class="scn-result-list scn-list" id="scn-tcp-results" style="margin-top:12px"></div>
-            </div>
-              </div><!-- /acc-body-scn-tcp -->
-            </div><!-- /acc-item scn-tcp -->
+          </div>
 
           <!-- SPOOF PANE -->
-            <div class="acc-item" data-acc="scn-spoof">
-              <div class="acc-head" onclick="accToggle('scn-spoof'); scnSwitch('spoof')">
-                <span class="glow" style="font-size:14px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 6v6M12 14v2"/></svg> Spoof</span>
-                <span class="acc-arrow" id="acc-arrow-scn-spoof">▼</span>
-              </div>
-              <div class="acc-body" id="acc-body-scn-spoof">
-          <div class="scn-pane-inline" id="scn-pane-spoof">
+          <div class="scn-pane" id="scn-pane-spoof">
             <!-- Advanced Section: Domain input that populates all inbound domains -->
             <div class="panel" style="margin-bottom:14px">
               <div class="panel-h"><span class="glow">⚙️ پیشرفته</span></div>
@@ -1287,18 +1262,10 @@ tr{animation:fadeIn .3s ease}
                 <button class="btn btn-g" onclick="spfLoadSpoofSettings()"><span>بارگذاری ذخیره‌شده</span></button>
               </div>
             </div>
-            </div>
-              </div><!-- /acc-body-scn-spoof -->
-            </div><!-- /acc-item scn-spoof -->
+          </div>
 
           <!-- SNI PANE -->
-            <div class="acc-item" data-acc="scn-sni">
-              <div class="acc-head" onclick="accToggle('scn-sni'); scnSwitch('sni')">
-                <span class="glow" style="font-size:14px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> SNI</span>
-                <span class="acc-arrow" id="acc-arrow-scn-sni">▼</span>
-              </div>
-              <div class="acc-body" id="acc-body-scn-sni">
-          <div class="scn-pane-inline" id="scn-pane-sni">
+          <div class="scn-pane" id="scn-pane-sni">
             <div class="scn-cfg">
               <div class="f-g" style="flex:2">
                 <label>SNI (Reality Target)</label>
@@ -1332,11 +1299,8 @@ tr{animation:fadeIn .3s ease}
               <div class="scn-saved-tags" id="scn-sni-results"></div>
             </div>
           </div>
-              </div><!-- /acc-body-scn-sni -->
-            </div><!-- /acc-item scn-sni -->
-          </div><!-- /scn-acc -->
-        </div><!-- /panel -->
-      </div><!-- /tab-scanner -->
+        </div>
+      </div>
 
       <!-- WORKER TAB (merged Worker/Tunnel/Reverse with vertical accordion) -->
       <div class="tab-content hidden" id="tab-worker">
@@ -1344,17 +1308,6 @@ tr{animation:fadeIn .3s ease}
           <div class="panel-h" style="justify-content:space-between">
             <span class="glow">⚡ <span data-i18n="worker">Worker</span></span>
             <span id="worker-badge" class="badge badge-g" style="margin-right:auto"></span>
-          </div>
-
-          <!-- Setup Accordion (FIRST) -->
-          <div id="acc-setup" class="acc-group" style="margin-bottom:10px">
-            <div class="acc-item open" data-acc="setup">
-              <div class="acc-head" onclick="accToggle('setup')">
-                <span class="glow" style="font-size:14px">⚙️ Setup</span>
-                <span class="acc-arrow" id="acc-arrow-setup">▼</span>
-              </div>
-              <div class="acc-body" id="acc-body-setup"></div>
-            </div>
           </div>
 
           <!-- Worker Accordion -->
@@ -1800,7 +1753,7 @@ var LANG = localStorage.getItem('spider-lang') || 'fa';
 var I18N = {
   fa: {
     'dash': 'داشبورد', 'users': 'کاربران', 'inbounds': 'اینباندها', 'scanner': 'اسکنر IP', 'worker': 'Worker', 'settings': 'تنظیمات', 'contact': 'Contact Me', 'logout': 'خروج',
-    'workerSetupTip': 'پنل را به Cloudflare متصل کنید تا یک Worker جدید با ساب‌دامین اختصاصی و KV اختصاصی ساخته شود. پنل مثل یک ریموت، کانفیگ‌ها را به Worker می‌فرستد.', 'cfToken': 'Cloudflare API Token', 'getToken': 'گرفتن توکن', 'cfAccountId': 'Account ID', 'cfWorkerName': 'Worker Name', 'cfWorkerDomain': 'Worker Domain', 'createNewWorker': 'ساخت Worker جدید', 'cfConnect': 'اتصال و Deploy', 'connected': 'متصل', 'disconnected': 'قطع', 'workerStatus': 'وضعیت', 'remoteStatus': 'وضعیت ریموت', 'lastHeartbeat': 'آخرین Heartbeat', 'workerId': 'Worker ID', 'kvId': 'KV ID', 'onlineUsers': 'کاربران آنلاین', 'workerTraffic': 'مصرف Worker', 'workerUrl': 'Worker URL', 'lastSync': 'آخرین Sync', 'lastError': 'آخرین خطا', 'proxyPool': 'Proxy IP Pool', 'addProxy': 'افزودن کشور', 'workerSettings': 'تنظیمات Worker', 'removeConn': 'حذف اتصال Worker', 'noProxyYet': 'هنوز کشوری اضافه نکرده‌اید', 'connecting': 'در حال ساخت...', 'workerConnected': 'Worker جدید ساخته و Deploy شد', 'syncing': 'در حال Sync...', 'synced': 'Sync شد', 'confirmRemoveWorker': 'اتصال Worker حذف شود؟', 'workerRemoved': 'اتصال Worker حذف شد', 'proxyCodePrompt': 'کد کشور (مثلا de):', 'proxyCountryPrompt': 'نام کشور:', 'proxyHostPrompt': 'آدرس Proxy IP (مثلا de.example.com):', 'proxyPortPrompt': 'پورت Proxy IP:', 'proxySaved': 'کشور ذخیره و Worker بروزرسانی شد', 'confirmDelProxy': 'این کشور حذف شود؟', 'proxyDeleted': 'کشور حذف شد', 'workerFillAll': 'همه فیلدها را پر کنید', 'workerProxyEnabled': 'Worker Proxy IP', 'workerProxyNone': 'بدون Proxy', 'workerRouteTip': 'کانفیگ کاربر روی دامنه Worker با مسیر /route/{کد کشور} ساخته می‌شود و از Railway عبور نمی‌کند.', 'workerAutoName': 'Worker جدید با نام تصادفی (spider-xxxxxx)، ساب‌دامین اختصاصی و KV اختصاصی ساخته می‌شود — نیازی به ورود نام نیست.', 'proxySource': 'منبع پروکسی روزانه', 'autoSyncHourly': 'بروزرسانی خودکار (ساعتی)', 'updateNow': 'بروزرسانی از منبع', 'updatingFromSource': 'در حال بروزرسانی از منبع', 'sourceUpdated': 'بروزرسانی شد', 'sourceError': 'خطا در بروزرسانی منبع', 'countries': 'کشور', 'syncsDone': 'تعداد بروزرسانی‌ها', 'pickCountry': 'یک کشور انتخاب کنید', 'workerNotConnected': 'Worker متصل نیست — ابتدا بخش Setup را پر کنید.',
+    'workerSetupTip': 'پنل را به Cloudflare متصل کنید تا یک Worker جدید با ساب‌دامین اختصاصی و KV اختصاصی ساخته شود. پنل مثل یک ریموت، کانفیگ‌ها را به Worker می‌فرستد.', 'cfToken': 'Cloudflare API Token', 'getToken': 'گرفتن توکن', 'cfAccountId': 'Account ID', 'cfWorkerName': 'Worker Name', 'cfWorkerDomain': 'Worker Domain', 'createNewWorker': 'ساخت Worker جدید', 'cfConnect': 'اتصال و Deploy', 'connected': 'متصل', 'disconnected': 'قطع', 'workerStatus': 'وضعیت', 'remoteStatus': 'وضعیت ریموت', 'lastHeartbeat': 'آخرین Heartbeat', 'workerId': 'Worker ID', 'kvId': 'KV ID', 'onlineUsers': 'کاربران آنلاین', 'workerTraffic': 'مصرف Worker', 'workerUrl': 'Worker URL', 'lastSync': 'آخرین Sync', 'lastError': 'آخرین خطا', 'proxyPool': 'Proxy IP Pool', 'addProxy': 'افزودن کشور', 'workerSettings': 'تنظیمات Worker', 'removeConn': 'حذف اتصال Worker', 'noProxyYet': 'هنوز کشوری اضافه نکرده‌اید', 'connecting': 'در حال ساخت...', 'workerConnected': 'Worker جدید ساخته و Deploy شد', 'syncing': 'در حال Sync...', 'synced': 'Sync شد', 'confirmRemoveWorker': 'اتصال Worker حذف شود؟', 'workerRemoved': 'اتصال Worker حذف شد', 'proxyCodePrompt': 'کد کشور (مثلا de):', 'proxyCountryPrompt': 'نام کشور:', 'proxyHostPrompt': 'آدرس Proxy IP (مثلا de.example.com):', 'proxyPortPrompt': 'پورت Proxy IP:', 'proxySaved': 'کشور ذخیره و Worker بروزرسانی شد', 'confirmDelProxy': 'این کشور حذف شود؟', 'proxyDeleted': 'کشور حذف شد', 'workerFillAll': 'همه فیلدها را پر کنید', 'workerProxyEnabled': 'Worker Proxy IP', 'workerProxyNone': 'بدون Proxy', 'workerRouteTip': 'کانفیگ کاربر روی دامنه Worker با مسیر /route/{کد کشور} ساخته می‌شود و از Railway عبور نمی‌کند.', 'workerAutoName': 'Worker جدید با نام تصادفی (spider-xxxxxx)، ساب‌دامین اختصاصی و KV اختصاصی ساخته می‌شود — نیازی به ورود نام نیست.', 'proxySource': 'منبع پروکسی روزانه', 'autoSyncHourly': 'بروزرسانی خودکار (ساعتی)', 'updateNow': 'بروزرسانی از منبع', 'updatingFromSource': 'در حال بروزرسانی از منبع', 'sourceUpdated': 'بروزرسانی شد', 'sourceError': 'خطا در بروزرسانی منبع', 'countries': 'کشور', 'syncsDone': 'تعداد بروزرسانی‌ها', 'pickCountry': 'یک کشور انتخاب کنید',
     'tab.dash': 'داشبورد', 'tab.users': 'مدیریت کاربران', 'tab.inbounds': 'مدیریت اینباندها', 'tab.scanner': 'اسکنر آی‌پی', 'tab.settings': 'تنظیمات',
     'inboundFixedHint': 'فقط اینباندهای پیش‌فرض پنل استفاده می‌شوند. WS/TLS به‌صورت خودکار با دامنه اصلی پنل آماده است؛ Reality را با دامنه و پورت خودتان تکمیل کنید (کلید pbk به‌صورت خودکار ساخته می‌شود).', 'inboundFixed': 'افزودن اینباند غیرفعال است — فقط اینباندهای پیش‌فرض.', 'inboundAuto': 'این اینباند خودکار است و نیازی به تنظیم ندارد.',
     'newUser': 'کاربر جدید', 'newInbound': 'اینباند جدید', 'domain': 'دامنه',
@@ -1859,7 +1812,7 @@ var I18N = {
   },
   en: {
     'dash': 'Dashboard', 'users': 'Users', 'inbounds': 'Inbounds', 'scanner': 'IP Scanner', 'worker': 'Worker', 'settings': 'Settings', 'contact': 'Contact Me', 'logout': 'Logout',
-    'workerSetupTip': 'Connect the panel to Cloudflare to create a brand-new Worker with its own dedicated subdomain and KV. The panel acts as a remote control, pushing configs to the Worker.', 'cfToken': 'Cloudflare API Token', 'getToken': 'Get Token', 'cfAccountId': 'Account ID', 'cfWorkerName': 'Worker Name', 'cfWorkerDomain': 'Worker Domain', 'createNewWorker': 'Create New Worker', 'cfConnect': 'Connect & Deploy', 'connected': 'Connected', 'disconnected': 'Disconnected', 'workerStatus': 'Status', 'remoteStatus': 'Remote Status', 'lastHeartbeat': 'Last Heartbeat', 'workerId': 'Worker ID', 'kvId': 'KV ID', 'onlineUsers': 'Online Users', 'workerTraffic': 'Worker Traffic', 'workerUrl': 'Worker URL', 'lastSync': 'Last Sync', 'lastError': 'Last Error', 'proxyPool': 'Proxy IP Pool', 'addProxy': 'Add Country', 'workerSettings': 'Worker Settings', 'removeConn': 'Remove Worker Connection', 'noProxyYet': 'No country added yet', 'connecting': 'Creating...', 'workerConnected': 'New worker created & deployed', 'syncing': 'Syncing...', 'synced': 'Synced', 'confirmRemoveWorker': 'Remove the Worker connection?', 'workerRemoved': 'Worker connection removed', 'proxyCodePrompt': 'Country code (e.g. de):', 'proxyCountryPrompt': 'Country name:', 'proxyHostPrompt': 'Proxy IP host (e.g. de.example.com):', 'proxyPortPrompt': 'Proxy IP port:', 'proxySaved': 'Country saved, worker updated', 'confirmDelProxy': 'Delete this country?', 'proxyDeleted': 'Country deleted', 'workerFillAll': 'Fill in all fields', 'workerProxyEnabled': 'Worker Proxy IP', 'workerProxyNone': 'No Proxy', 'workerRouteTip': 'The user config is built on the Worker domain with a /route/{code} path — traffic never crosses Railway.', 'workerAutoName': 'A new worker is created with a random name (spider-xxxxxx), its own subdomain and its own dedicated KV — no name entry needed.', 'proxySource': 'Daily Proxy Source', 'autoSyncHourly': 'Auto-update (hourly)', 'updateNow': 'Update Now', 'updatingFromSource': 'Updating from source', 'sourceUpdated': 'Updated', 'sourceError': 'Failed to update source', 'countries': 'countries', 'syncsDone': 'Syncs done', 'pickCountry': 'Pick a country', 'workerNotConnected': 'Worker not connected — fill the Setup section first.',
+    'workerSetupTip': 'Connect the panel to Cloudflare to create a brand-new Worker with its own dedicated subdomain and KV. The panel acts as a remote control, pushing configs to the Worker.', 'cfToken': 'Cloudflare API Token', 'getToken': 'Get Token', 'cfAccountId': 'Account ID', 'cfWorkerName': 'Worker Name', 'cfWorkerDomain': 'Worker Domain', 'createNewWorker': 'Create New Worker', 'cfConnect': 'Connect & Deploy', 'connected': 'Connected', 'disconnected': 'Disconnected', 'workerStatus': 'Status', 'remoteStatus': 'Remote Status', 'lastHeartbeat': 'Last Heartbeat', 'workerId': 'Worker ID', 'kvId': 'KV ID', 'onlineUsers': 'Online Users', 'workerTraffic': 'Worker Traffic', 'workerUrl': 'Worker URL', 'lastSync': 'Last Sync', 'lastError': 'Last Error', 'proxyPool': 'Proxy IP Pool', 'addProxy': 'Add Country', 'workerSettings': 'Worker Settings', 'removeConn': 'Remove Worker Connection', 'noProxyYet': 'No country added yet', 'connecting': 'Creating...', 'workerConnected': 'New worker created & deployed', 'syncing': 'Syncing...', 'synced': 'Synced', 'confirmRemoveWorker': 'Remove the Worker connection?', 'workerRemoved': 'Worker connection removed', 'proxyCodePrompt': 'Country code (e.g. de):', 'proxyCountryPrompt': 'Country name:', 'proxyHostPrompt': 'Proxy IP host (e.g. de.example.com):', 'proxyPortPrompt': 'Proxy IP port:', 'proxySaved': 'Country saved, worker updated', 'confirmDelProxy': 'Delete this country?', 'proxyDeleted': 'Country deleted', 'workerFillAll': 'Fill in all fields', 'workerProxyEnabled': 'Worker Proxy IP', 'workerProxyNone': 'No Proxy', 'workerRouteTip': 'The user config is built on the Worker domain with a /route/{code} path — traffic never crosses Railway.', 'workerAutoName': 'A new worker is created with a random name (spider-xxxxxx), its own subdomain and its own dedicated KV — no name entry needed.', 'proxySource': 'Daily Proxy Source', 'autoSyncHourly': 'Auto-update (hourly)', 'updateNow': 'Update Now', 'updatingFromSource': 'Updating from source', 'sourceUpdated': 'Updated', 'sourceError': 'Failed to update source', 'countries': 'countries', 'syncsDone': 'Syncs done', 'pickCountry': 'Pick a country',
     'tab.dash': 'Dashboard', 'tab.users': 'Manage Users', 'tab.inbounds': 'Manage Inbounds', 'tab.scanner': 'IP Scanner', 'tab.settings': 'Settings',
     'inboundFixedHint': 'Only the panel’s default inbounds are used. WS/TLS is ready automatically with the panel’s main domain; fill Reality’s domain & ports yourself (pbk is auto-generated).', 'inboundFixed': 'Adding inbounds is disabled — only the default inbounds.', 'inboundAuto': 'This inbound is automatic — nothing to configure.',
     'newUser': 'New User', 'newInbound': 'New Inbound', 'domain': 'Domain',
@@ -3882,7 +3835,7 @@ async function loadTunnel() {
     var urlEl = $id('tn-url');
     if (urlEl) { urlEl.textContent = s.worker_url || '—'; urlEl.href = s.worker_url || '#'; }
     var kvEl = $id('tn-kv');
-    if (kvEl) kvEl.textContent = (s.kv_namespace_title ? s.kv_namespace_title + ' · ' : '') + (s.kv_namespace_id || '—');
+    if (kvEl) kvEl.textContent = (s.tunnel_kv_title ? s.tunnel_kv_title + ' · ' : '') + (s.tunnel_kv_id || '—');
     var pathEl = $id('tn-inbound-path');
     if (pathEl) pathEl.textContent = s.inbound_exists ? (s.panel_domain + '/tunnel/{uuid}  ·  TLS+WS') : '—';
     var hbEl = $id('tn-heartbeat');
@@ -3911,7 +3864,7 @@ async function loadTunnel() {
       var rPath = $id('tn-reverse-path');
       if (rPath) rPath.textContent = s.worker_domain + '/reverse/{uuid}';
       var rKv = $id('tn-reverse-kv');
-      if (rKv) rKv.textContent = (s.kv_namespace_title ? s.kv_namespace_title + ' · ' : '') + (s.kv_namespace_id || '—');
+      if (rKv) rKv.textContent = (s.reverse_kv_title ? s.reverse_kv_title + ' · ' : '') + (s.reverse_kv_id || '—');
     }
   } catch(e) {}
 }
@@ -4337,7 +4290,6 @@ document.addEventListener('click', function(e) {
 var WK_STATE = {connected: false, proxies: []};
 
 async function loadWorker() {
-  var sb = $id('acc-body-setup');
   var wb = $id('acc-body-worker');
   var badge = $id('worker-badge');
   try {
@@ -4348,33 +4300,21 @@ async function loadWorker() {
       badge.textContent = connected ? t('connected') : t('disconnected');
       badge.className = 'badge ' + (connected ? 'badge-g' : 'badge-r');
     }
-    // ── Setup accordion (FIRST): token-only connect ──
-    if (sb) {
-      var sh = '<div class="acc-body-inner">';
-      if (!connected) {
-        sh += '<div class="px-hint" data-i18n="workerSetupTip">پنل را به Cloudflare متصل کنید تا یک Worker جدید با ساب‌دامین اختصاصی و KV مشترک ساخته شود.</div>';
-        sh += '<div class="f-g" style="margin-top:10px"><label data-i18n="cfToken">Cloudflare API Token</label><input type="password" id="wk-token" dir="ltr" style="width:100%" autocomplete="off"></div>';
-        sh += '<div style="display:flex;gap:8px;margin-top:8px">';
-        sh += '<a class="btn btn-sm btn-b" href="' + esc(w.token_link || 'https://dash.cloudflare.com/profile/api-tokens') + '" target="_blank" rel="noopener" style="flex:1;text-decoration:none;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> <span data-i18n="getToken">گرفتن توکن</span></a>';
-        sh += '<button class="btn btn-p" style="flex:1" onclick="workerSetup()"><span data-i18n="cfConnect">اتصال و Deploy</span></button></div>';
-        sh += '<div class="px-hint" style="font-size:10px;color:var(--txt2);margin-top:8px">نام Worker و KV به صورت خودکار ساخته می‌شوند. توکن فقط دسترسی‌های Worker/KV لازم را بدهد.</div>';
-      } else {
-        sh += '<div class="set-row"><span class="set-lbl">وضعیت</span><span class="badge badge-g">' + t('connected') + '</span></div>';
-        sh += '<div class="set-row"><span class="set-lbl">Account ID</span><span dir="ltr" style="font-size:10px;font-family:monospace;color:var(--txt2);word-break:break-all">' + esc(w.account_id || '—') + '</span></div>';
-        sh += '<div class="set-row"><span class="set-lbl">Worker Name</span><span dir="ltr" style="font-size:11px;font-family:monospace;color:var(--txt)">' + esc(w.worker_name || '—') + '</span></div>';
-        sh += '<div class="set-row"><span class="set-lbl" data-i18n="disconnect">قطع اتصال</span><button class="btn btn-sm btn-r" onclick="workerDisconnect()">' + t('removeConn') + '</button></div>';
-      }
-      sh += '</div>';
-      sb.innerHTML = sh;
-    }
-    // ── Worker accordion: management view ──
     if (wb) {
+      // Render the worker accordion body dynamically
       var html = '<div class="acc-body-inner">';
       if (!connected) {
-        html += '<div class="empty" data-i18n="workerNotConnected">Worker متصل نیست — ابتدا بخش Setup را پر کنید.</div>';
+        // Setup form
+        html += '<div class="px-hint" data-i18n="workerSetupTip">پنل را به Cloudflare متصل کنید.</div>';
+        html += '<div class="f-g" style="margin-top:10px"><label data-i18n="cfToken">Cloudflare API Token</label><input type="password" id="wk-token" dir="ltr" style="width:100%" autocomplete="off"></div>';
+        html += '<div class="px-hint" style="font-size:10px;color:var(--txt2);margin-bottom:6px">توکن فقط باید دسترسی‌های لازم Worker را داشته باشد.</div>';
+        html += '<button class="btn btn-p" style="width:100%;margin-top:10px" onclick="workerSetup()"><span data-i18n="createNewWorker">ساخت Worker جدید</span></button>';
       } else {
+        // Managed view
+        html += '<div class="set-row"><span class="set-lbl">وضعیت</span><span class="badge badge-g">' + t('connected') + '</span></div>';
         html += '<div class="set-row"><span class="set-lbl">Worker URL</span><a href="' + esc(w.worker_url || '') + '" target="_blank" style="color:var(--neon);font-size:11px">' + esc(w.worker_url || '') + '</a></div>';
-        html += '<div class="set-row"><span class="set-lbl">KV (مشترک)</span><span dir="ltr" style="font-size:10px;font-family:monospace;color:var(--txt2);word-break:break-all">' + esc((w.kv_namespace_title ? w.kv_namespace_title + ' · ' : '') + (w.kv_namespace_id || '—')) + '</span></div>';
+        html += '<div class="set-row"><span class="set-lbl">Worker ID</span><span dir="ltr" style="font-size:11px;font-family:monospace;color:var(--txt)">' + esc(w.worker_name || '—') + '</span></div>';
+        html += '<div class="set-row"><span class="set-lbl">KV ID</span><span dir="ltr" style="font-size:10px;font-family:monospace;color:var(--txt2);word-break:break-all">' + esc((w.kv_namespace_title ? w.kv_namespace_title + ' · ' : '') + (w.kv_namespace_id || '—')) + '</span></div>';
         html += '<div class="set-row"><span class="set-lbl">Last Sync</span><span style="font-size:11px;color:var(--txt2)">' + esc(w.last_sync || '—') + '</span></div>';
         html += '<div class="set-row"><span class="set-lbl">Last Error</span><span style="font-size:11px;color:var(--red)">' + esc(w.last_error || '—') + '</span></div>';
         html += '<div style="margin-top:12px;border-top:1px solid var(--border);padding-top:14px">';
@@ -4384,6 +4324,7 @@ async function loadWorker() {
         html += '<div class="set-row" style="margin-top:12px"><span class="set-lbl">بروزرسانی خودکار</span>';
         html += '<button type="button" class="ios-switch' + (w.auto_sync ? ' on' : '') + '" id="wk-auto" onclick="workerToggleAuto()"></button></div>';
         html += '<button class="btn btn-sm btn-g" onclick="workerSyncSource()" style="width:100%;margin-top:8px">بروزرسانی از منبع</button>';
+        html += '<button class="btn btn-sm btn-r" onclick="workerDisconnect()" style="width:100%;margin-top:8px">حذف اتصال Worker</button>';
       }
       html += '</div>';
       wb.innerHTML = html;
@@ -4391,7 +4332,6 @@ async function loadWorker() {
     }
   } catch(e) {
     if (badge) { badge.textContent = t('disconnected'); badge.className = 'badge badge-r'; }
-    if (sb) sb.innerHTML = '<div class="acc-body-inner"><div class="empty">خطا در بارگذاری Setup</div></div>';
     if (wb) wb.innerHTML = '<div class="acc-body-inner"><div class="empty">خطا در بارگذاری Worker</div></div>';
   }
 }
@@ -4972,7 +4912,7 @@ async function loadTunnelAccordion() {
       + '<div class="set-row"><span class="set-lbl">وضعیت</span><span class="badge ' + (s.tunnel_enabled ? 'badge-g' : 'badge-r') + '">' + (s.tunnel_enabled ? 'Active' : 'Inactive') + '</span></div>'
       + '<div class="set-row"><span class="set-lbl">Worker URL</span><a href="' + esc(s.worker_url) + '" target="_blank" style="color:var(--neon);font-size:11px">' + esc(s.worker_domain) + '</a></div>'
       + '<div class="set-row"><span class="set-lbl">Ping</span><span style="color:var(--neon);font-size:12px">' + (s.ping_ms != null ? s.ping_ms + ' ms' : '—') + '</span></div>'
-      + '<div class="set-row"><span class="set-lbl">KV Namespace</span><span style="font-size:10px;font-family:monospace;color:var(--txt2);word-break:break-all">' + esc(s.kv_namespace_title || '') + '</span></div>'
+      + '<div class="set-row"><span class="set-lbl">KV Namespace</span><span style="font-size:10px;font-family:monospace;color:var(--txt2);word-break:break-all">' + esc(s.tunnel_kv_title || '') + '</span></div>'
       + '<div class="scn-list" id="tn-logs">' + (s.logs || []).map(function(l) { return '<div style="font-size:11px;padding:4px;color:var(--txt2)">' + esc(l.msg) + '</div>'; }).join('') + '</div>'
       + '<button class="btn btn-p" style="width:100%;margin-top:12px" onclick="tunnelCreate()">ایجاد اینباند Tunnel</button>'
       + '</div>';
@@ -4995,7 +4935,7 @@ async function loadReverseAccordion() {
       + '<div class="set-row"><span class="set-lbl">وضعیت Reverse</span><span class="badge ' + (s.reverse_enabled ? 'badge-g' : 'badge-r') + '">' + (s.reverse_enabled ? 'Active' : 'Inactive') + '</span></div>'
       + '<div class="set-row"><span class="set-lbl">مسیر</span><span dir="ltr" style="font-size:11px;font-family:monospace;color:var(--txt)">' + (s.reverse_path || '—') + '</span></div>'
       + '<div class="set-row"><span class="set-lbl">Ping</span><span style="color:var(--neon);font-size:12px">' + (s.reverse_ping_ms != null ? s.reverse_ping_ms + ' ms' : '—') + '</span></div>'
-      + '<div class="set-row"><span class="set-lbl">KV Namespace</span><span style="font-size:10px;font-family:monospace;color:var(--txt2);word-break:break-all">' + esc(s.kv_namespace_title || '') + '</span></div>'
+      + '<div class="set-row"><span class="set-lbl">KV Namespace</span><span style="font-size:10px;font-family:monospace;color:var(--txt2);word-break:break-all">' + esc(s.reverse_kv_title || '') + '</span></div>'
       + '<div class="set-row" style="border-bottom:none">'
       + '<span class="set-lbl">حالت Reverse</span>'
       + '<button type="button" class="ios-switch ' + (s.reverse_enabled ? 'on' : '') + '" id="rev-sw" onclick="tunnelReverseToggle(this)"></button>'
