@@ -1,26 +1,28 @@
-<div align="center" dir="rtl">
+<div align="right" dir="rtl">
 
 🕷️ SpiderPanel
 
 🚀 راهنمای نصب و دیپلوی
 
-⸻
+────────
 
 ⚡ نصب مستقیم روی VPS
 
-اگر می‌خواهید SpiderPanel را مستقیماً روی VPS نصب کنید، کافی است دستور زیر را در ترمینال اجرا کنید:
+اگر می‌خواهید SpiderPanel را مستقیماً روی VPS نصب کنید، دستور زیر را در ترمینال اجرا کنید:
 
+```bash
 bash <(curl -Ls https://raw.githubusercontent.com/amirh00sain/SpiderPanel/main/start.sh)
+```
 
-💡 اسکریپت نصب، پروژه را دریافت کرده و محیط موردنیاز را برای اجرای SpiderPanel روی VPS آماده می‌کند.
+> 💡 **دستور بالا را کپی کرده و در ترمینال VPS اجرا کنید.**
 
-⸻
+────────
 
 🚄 دیپلوی روی Railway
 
 ۱. دریافت ایمیل موقت
 
-ابتدا وارد Atomic Mail شوید و یک ایمیل جدید دریافت کنید.
+ابتدا وارد سایت Atomic Mail شوید و یک ایمیل جدید دریافت کنید.
 
 ۲. ساخت حساب GitHub
 
@@ -42,33 +44,41 @@ bash <(curl -Ls https://raw.githubusercontent.com/amirh00sain/SpiderPanel/main/s
 
 پس از اتمام کامل Deploy:
 
-* وارد بخش Settings شوید.
-* روی Generate Domain کلیک کنید.
-* پورت را روی 8080 تنظیم کنید.
+• وارد بخش Settings شوید.
+• روی Generate Domain کلیک کنید.
+• پورت را روی 8080 تنظیم کنید.
 
 ۷. ورود به پنل
 
 پس از ساخت Domain، عبارت زیر را به انتهای آدرس اضافه کنید:
 
+```text
 /spider
+```
 
-برای مثال:
+مثال:
 
+```text
 https://your-domain.up.railway.app/spider
+```
 
-⸻
+────────
 
 📌 اطلاعات پروژه
 
 پورت پیش‌فرض:
 
+```text
 8080
+```
 
 مسیر ورود به پنل:
 
+```text
 /spider
+```
 
-⸻
+────────
 
 📢 کانال‌های ارتباطی
 
@@ -78,7 +88,7 @@ amirsp1ider
 📢 کانال اصلی:
 SPiDER_VPN1
 
-⸻
+────────
 
 ❤️ ساخته شده توسط amirsp1ider
 
